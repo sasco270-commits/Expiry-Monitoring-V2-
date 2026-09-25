@@ -2,395 +2,236 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SASCO Palm - Expiry Monitoring</title>
 
 <style>
-*{
-  box-sizing:border-box;
-}
-
+*{box-sizing:border-box}
 body{
-  margin:0;
-  font-family:Inter,Arial,sans-serif;
-  background:#f3f6fb;
-  color:#172033;
+ margin:0;
+ font-family:Arial,Helvetica,sans-serif;
+ background:#f4f7fb;
+ color:#172033
 }
-
 header{
-  background:#0b1830;
-  color:white;
-  padding:18px 28px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  box-shadow:0 3px 15px rgba(0,0,0,.15);
+ background:#0b1830;
+ color:#fff;
+ padding:16px 24px;
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ position:sticky;
+ top:0;
+ z-index:100
 }
-
-.logo{
-  font-size:22px;
-  font-weight:800;
-}
-
-.header-right{
-  display:flex;
-  gap:10px;
-  align-items:center;
-}
-
+.logo{font-size:21px;font-weight:800}
+.header-actions{display:flex;gap:8px;align-items:center}
 .status{
-  padding:7px 12px;
-  border-radius:20px;
-  font-size:12px;
-  background:#374151;
+ padding:6px 11px;
+ border-radius:20px;
+ font-size:11px;
+ background:#64748b
 }
-
-.status.connected{
-  background:#15803d;
-}
-
-.status.error{
-  background:#dc2626;
-}
-
-button{
-  border:0;
-  border-radius:9px;
-  padding:10px 15px;
-  font-weight:700;
-  cursor:pointer;
-}
-
-.btn-blue{
-  background:#2563eb;
-  color:white;
-}
-
-.btn-green{
-  background:#16a34a;
-  color:white;
-}
-
-.btn-red{
-  background:#dc2626;
-  color:white;
-}
-
-.btn-gray{
-  background:#64748b;
-  color:white;
-}
-
-.btn-orange{
-  background:#ea580c;
-  color:white;
-}
-
-.container{
-  max-width:1450px;
-  margin:auto;
-  padding:25px;
-}
-
-.page{
-  display:none;
-}
-
-.page.active{
-  display:block;
-}
-
-.hero{
-  background:white;
-  border-radius:18px;
-  padding:28px;
-  box-shadow:0 5px 25px rgba(15,23,42,.06);
-  margin-bottom:20px;
-}
-
-.hero h1{
-  margin:0;
-  color:#1d4ed8;
-}
-
-.hero p{
-  color:#64748b;
-}
-
+.status.ok{background:#15803d}
+.status.err{background:#dc2626}
+.container{max-width:1500px;margin:auto;padding:22px}
+.page{display:none}
+.page.active{display:block}
 .card{
-  background:white;
-  border-radius:16px;
-  padding:22px;
-  margin-bottom:20px;
-  box-shadow:0 5px 25px rgba(15,23,42,.06);
+ background:#fff;
+ border:1px solid #e2e8f0;
+ border-radius:15px;
+ padding:20px;
+ margin-bottom:18px;
+ box-shadow:0 5px 20px rgba(15,23,42,.05)
 }
-
-.card-title{
-  font-size:18px;
-  font-weight:800;
-  margin-bottom:18px;
-  color:#0f172a;
+.hero{
+ background:#fff;
+ border-radius:15px;
+ padding:25px;
+ margin-bottom:18px
 }
-
+.hero h1{margin:0;color:#1d4ed8}
+.hero p{color:#64748b}
 .grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:15px;
+ display:grid;
+ grid-template-columns:repeat(4,1fr);
+ gap:13px
 }
-
-.field{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
-
 .field label{
-  font-size:12px;
-  font-weight:800;
-  color:#475569;
+ display:block;
+ font-size:12px;
+ font-weight:700;
+ color:#475569;
+ margin-bottom:6px
 }
-
-input,
-select,
-textarea{
-  width:100%;
-  border:1px solid #d8e0ea;
-  border-radius:9px;
-  padding:11px 12px;
-  outline:none;
-  background:white;
-  font-size:14px;
+input,select,textarea{
+ width:100%;
+ height:40px;
+ border:1px solid #cbd5e1;
+ border-radius:8px;
+ padding:0 10px;
+ outline:none;
+ font-size:13px;
+ background:#fff
 }
-
-input:focus,
-select:focus,
-textarea:focus{
-  border-color:#2563eb;
-  box-shadow:0 0 0 3px rgba(37,99,235,.1);
+textarea{height:80px;padding:10px}
+input:focus,select:focus{
+ border-color:#2563eb;
+ box-shadow:0 0 0 3px rgba(37,99,235,.1)
 }
-
-input[readonly]{
-  background:#f8fafc;
+input[readonly]{background:#f8fafc}
+.full{grid-column:1/-1}
+button{
+ border:0;
+ border-radius:8px;
+ padding:9px 14px;
+ font-weight:700;
+ cursor:pointer
 }
-
-.full{
-  grid-column:1/-1;
-}
-
-.actions{
-  display:flex;
-  gap:10px;
-  margin-top:20px;
-  flex-wrap:wrap;
-}
-
-table{
-  width:100%;
-  border-collapse:collapse;
-}
-
-th{
-  background:#0b1830;
-  color:white;
-  text-align:left;
-  padding:11px;
-  font-size:12px;
-}
-
-td{
-  padding:10px;
-  border-bottom:1px solid #e5e7eb;
-  font-size:13px;
-}
-
-tr:hover td{
-  background:#f8fafc;
-}
-
-.item-row{
-  display:grid;
-  grid-template-columns:1fr 2fr 120px 160px 45px;
-  gap:8px;
-  margin-bottom:8px;
-  align-items:center;
-}
-
-.lookup-box{
-  position:relative;
-}
-
-.lookup-result{
-  margin-top:6px;
-  background:#f0fdf4;
-  border:1px solid #bbf7d0;
-  border-radius:8px;
-  padding:9px;
-  font-size:12px;
-  display:none;
-}
-
-.lookup-result.show{
-  display:block;
-}
-
-.home-grid{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:20px;
-}
-
-.module{
-  background:white;
-  padding:30px;
-  border-radius:18px;
-  text-align:center;
-  cursor:pointer;
-  box-shadow:0 5px 25px rgba(15,23,42,.06);
-  transition:.2s;
-}
-
-.module:hover{
-  transform:translateY(-3px);
-  box-shadow:0 10px 30px rgba(15,23,42,.12);
-}
-
-.module .icon{
-  font-size:40px;
-  margin-bottom:12px;
-}
-
-.module h2{
-  margin:5px 0;
-}
-
-.module p{
-  color:#64748b;
-  font-size:13px;
-}
-
-.admin-tabs{
-  display:flex;
-  gap:8px;
-  flex-wrap:wrap;
-  border-bottom:1px solid #e2e8f0;
-  margin-bottom:20px;
-}
-
-.admin-tab{
-  background:transparent;
-  color:#64748b;
-  border-radius:0;
-  border-bottom:3px solid transparent;
-}
-
-.admin-tab.active{
-  color:#2563eb;
-  border-bottom-color:#2563eb;
-}
-
-.admin-panel{
-  display:none;
-}
-
-.admin-panel.active{
-  display:block;
-}
-
-.stat-grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:15px;
-}
-
-.stat{
-  padding:20px;
-  border-radius:14px;
-  background:#f8fafc;
-  border:1px solid #e2e8f0;
-}
-
-.stat-number{
-  font-size:27px;
-  font-weight:900;
-  color:#2563eb;
-}
-
-.stat-label{
-  color:#64748b;
-  font-size:12px;
-}
-
+.blue{background:#2563eb;color:#fff}
+.green{background:#16a34a;color:#fff}
+.red{background:#dc2626;color:#fff}
+.gray{background:#64748b;color:#fff}
+.orange{background:#ea580c;color:#fff}
+.light{background:#e2e8f0;color:#172033}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
 .message{
-  padding:12px 15px;
-  border-radius:9px;
-  margin-bottom:15px;
-  display:none;
+ display:none;
+ padding:11px;
+ border-radius:8px;
+ margin-bottom:12px;
+ font-size:13px
 }
-
-.message.show{
-  display:block;
+.message.show{display:block}
+.message.success{background:#dcfce7;color:#166534}
+.message.error{background:#fee2e2;color:#991b1b}
+.message.info{background:#dbeafe;color:#1e40af}
+.table-wrap{overflow:auto}
+table{
+ width:100%;
+ border-collapse:collapse;
+ min-width:900px
 }
-
-.message.success{
-  background:#dcfce7;
-  color:#166534;
+th{
+ background:#0b1830;
+ color:#fff;
+ padding:10px;
+ font-size:12px;
+ text-align:left;
+ white-space:nowrap
 }
-
-.message.error{
-  background:#fee2e2;
-  color:#991b1b;
+td{
+ padding:8px;
+ border-bottom:1px solid #e5e7eb;
+ font-size:12px
 }
-
-.message.info{
-  background:#dbeafe;
-  color:#1e40af;
-}
-
 .badge{
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:15px;
-  background:#dbeafe;
-  color:#1d4ed8;
-  font-size:11px;
-  font-weight:700;
+ display:inline-block;
+ padding:4px 8px;
+ border-radius:15px;
+ background:#dbeafe;
+ color:#1d4ed8;
+ font-size:10px;
+ font-weight:700
 }
-
+.home-grid{
+ display:grid;
+ grid-template-columns:repeat(2,1fr);
+ gap:18px
+}
+.module{
+ background:#fff;
+ padding:28px;
+ border-radius:15px;
+ text-align:center;
+ cursor:pointer;
+ box-shadow:0 5px 20px rgba(15,23,42,.05)
+}
+.module:hover{transform:translateY(-2px)}
+.module-icon{font-size:40px}
+.item-form{
+ display:grid;
+ grid-template-columns:2fr 1fr 1fr 1fr;
+ gap:10px
+}
+.admin-tabs{
+ display:flex;
+ gap:5px;
+ flex-wrap:wrap;
+ border-bottom:1px solid #e2e8f0;
+ margin-bottom:18px
+}
+.admin-tab{
+ background:transparent;
+ color:#64748b;
+ border-radius:0;
+ border-bottom:3px solid transparent
+}
+.admin-tab.active{
+ color:#2563eb;
+ border-bottom-color:#2563eb
+}
+.admin-section{display:none}
+.admin-section.active{display:block}
+.stats{
+ display:grid;
+ grid-template-columns:repeat(4,1fr);
+ gap:12px;
+ margin-bottom:18px
+}
+.stat{
+ background:#f8fafc;
+ border:1px solid #e2e8f0;
+ border-radius:12px;
+ padding:15px
+}
+.stat-number{
+ font-size:25px;
+ font-weight:900;
+ color:#2563eb
+}
+.stat-label{
+ color:#64748b;
+ font-size:11px
+}
+.login-box{
+ max-width:430px;
+ margin:70px auto
+}
+.login-title{
+ font-size:20px;
+ font-weight:800;
+ margin-bottom:18px
+}
+.checkbox-list{
+ max-height:350px;
+ overflow:auto;
+ border:1px solid #e2e8f0;
+ border-radius:8px
+}
+.checkbox-row{
+ display:flex;
+ gap:8px;
+ align-items:center;
+ padding:9px;
+ border-bottom:1px solid #e2e8f0
+}
+.checkbox-row input{
+ width:18px;
+ height:18px
+}
+.hidden{display:none!important}
 @media(max-width:1000px){
-  .grid{
-    grid-template-columns:repeat(2,1fr);
-  }
-
-  .home-grid{
-    grid-template-columns:1fr;
-  }
-
-  .stat-grid{
-    grid-template-columns:repeat(2,1fr);
-  }
+ .grid{grid-template-columns:repeat(2,1fr)}
+ .stats{grid-template-columns:repeat(2,1fr)}
 }
-
-@media(max-width:650px){
-  header{
-    padding:14px;
-  }
-
-  .container{
-    padding:12px;
-  }
-
-  .grid{
-    grid-template-columns:1fr;
-  }
-
-  .stat-grid{
-    grid-template-columns:1fr;
-  }
-
-  .item-row{
-    grid-template-columns:1fr;
-  }
+@media(max-width:600px){
+ .grid{grid-template-columns:1fr}
+ .home-grid{grid-template-columns:1fr}
+ .stats{grid-template-columns:1fr}
+ header{padding:12px}
+ .container{padding:10px}
 }
 </style>
 </head>
@@ -398,631 +239,660 @@ tr:hover td{
 <body>
 
 <header>
-  <div class="logo">SASCO PALM · Expiry Monitoring</div>
 
-  <div class="header-right">
-    <span id="firebaseStatus" class="status">
-      Connecting...
-    </span>
+<div class="logo">
+SASCO PALM · Expiry Monitoring
+</div>
 
-    <button class="btn-gray" onclick="showPage('homePage')">
-      Home
-    </button>
+<div class="header-actions">
 
-    <button class="btn-blue" onclick="showPage('adminPage')">
-      ⚙ Admin
-    </button>
-  </div>
+<span id="firebaseStatus" class="status">
+Connecting...
+</span>
+
+<button class="gray" onclick="showPage('homePage')">
+Home
+</button>
+
+<button class="blue" onclick="openAdminLogin()">
+Admin
+</button>
+
+</div>
 </header>
+
 
 <div class="container">
 
-<!-- =========================================================
-     HOME
-========================================================= -->
+<!-- =====================================================
+HOME
+===================================================== -->
 
 <section id="homePage" class="page active">
 
-  <div class="hero">
-    <h1>Sasco Palm</h1>
-    <p>Inventory Management System for Palm Stores</p>
-  </div>
+<div class="hero">
+<h1>Sasco Palm</h1>
+<p>Inventory Management System for Palm Stores</p>
+</div>
 
-  <div class="home-grid">
+<div class="home-grid">
 
-    <div class="module" onclick="showPage('expiryPage')">
-      <div class="icon">📊</div>
-      <h2>Weekly Expiry Monitoring</h2>
-      <p>
-        Monitor expiry dates, near-expiry items and submit weekly records.
-      </p>
-    </div>
+<div class="module" onclick="showPage('expiryPage')">
+<div class="module-icon">📊</div>
+<h2>Weekly Expiry Monitoring</h2>
+<p>Enter your Store Code and submit expiry items.</p>
+</div>
 
-    <div class="module" onclick="showPage('adminPage')">
-      <div class="icon">⚙️</div>
-      <h2>Admin Panel</h2>
-      <p>
-        Manage stores, categories and Firebase master data.
-      </p>
-    </div>
+<div class="module" onclick="openAdminLogin()">
+<div class="module-icon">⚙️</div>
+<h2>Admin Panel</h2>
+<p>Manage stores, categories and item master.</p>
+</div>
 
-  </div>
+</div>
 
 </section>
 
 
-<!-- =========================================================
-     EXPIRY FORM
-========================================================= -->
+<!-- =====================================================
+EXPIRY FORM
+===================================================== -->
 
 <section id="expiryPage" class="page">
 
-  <div class="hero">
-    <h1>Weekly Expiry Monitoring</h1>
-    <p>Enter Store Code and scan / enter barcode.</p>
+<div class="hero">
 
-    <div id="formMessage" class="message"></div>
-  </div>
+<h1>Weekly Expiry Monitoring</h1>
 
+<p>
+Store information and item master are loaded from Firebase.
+</p>
 
-  <div class="card">
+<div id="formMessage" class="message"></div>
 
-    <div class="card-title">
-      Store Information
-    </div>
-
-    <div class="grid">
-
-      <div class="field">
-        <label>Store Code</label>
-        <input
-          id="storeCode"
-          placeholder="Enter Store Code"
-          autocomplete="off"
-          oninput="lookupStore()">
-      </div>
-
-      <div class="field">
-        <label>Store Name</label>
-        <input id="storeName" readonly>
-      </div>
-
-      <div class="field">
-        <label>Area Manager</label>
-        <input id="areaManager" readonly>
-      </div>
-
-      <div class="field">
-        <label>Operation Manager</label>
-        <input id="operationManager" readonly>
-      </div>
-
-      <div class="field">
-        <label>Category</label>
-        <select id="category"></select>
-      </div>
-
-      <div class="field">
-        <label>Cycle Start</label>
-        <input id="cycleStart" type="date">
-      </div>
-
-      <div class="field">
-        <label>Cycle End</label>
-        <input id="cycleEnd" type="date">
-      </div>
-
-    </div>
-
-  </div>
+</div>
 
 
-  <div class="card">
+<div class="card">
 
-    <div class="card-title">
-      Add Expiry Item
-    </div>
+<h3>Store Information</h3>
 
-    <div class="grid">
+<div class="grid">
 
-      <div class="field full lookup-box">
-        <label>Barcode / SKU</label>
+<div class="field">
+<label>Store Code</label>
+<input
+id="storeCode"
+placeholder="Enter Store Code"
+autocomplete="off"
+oninput="lookupStore()">
+</div>
 
-        <input
-          id="barcodeInput"
-          placeholder="Scan or enter barcode / SKU"
-          autocomplete="off"
-          oninput="lookupItem()"
-          onkeydown="barcodeEnter(event)">
+<div class="field">
+<label>Store Name</label>
+<input id="storeName" readonly>
+</div>
 
-        <div id="itemLookupResult" class="lookup-result"></div>
-      </div>
+<div class="field">
+<label>Area Manager</label>
+<input id="areaManager" readonly>
+</div>
 
-      <div class="field">
-        <label>SKU</label>
-        <input id="itemSku" readonly>
-      </div>
+<div class="field">
+<label>Operation Manager</label>
+<input id="operationManager" readonly>
+</div>
 
-      <div class="field">
-        <label>Item Name</label>
-        <input id="itemName" readonly>
-      </div>
+<div class="field">
+<label>Category</label>
+<select id="category" onchange="categoryChanged()">
+<option value="">Select Category</option>
+</select>
+</div>
 
-      <div class="field">
-        <label>UOM</label>
-        <input id="itemUom" readonly>
-      </div>
+<div class="field">
+<label>Cycle Start</label>
+<input id="cycleStart" type="date">
+</div>
 
-      <div class="field">
-        <label>Cost</label>
-        <input id="itemCost" readonly>
-      </div>
+<div class="field">
+<label>Cycle End</label>
+<input id="cycleEnd" type="date">
+</div>
 
-      <div class="field">
-        <label>Supplier</label>
-        <input id="itemSupplier" readonly>
-      </div>
-
-      <div class="field">
-        <label>Vendor Code</label>
-        <input id="itemVendor" readonly>
-      </div>
-
-      <div class="field">
-        <label>Quantity</label>
-        <input id="itemQty" type="number" min="0" step="0.01">
-      </div>
-
-      <div class="field">
-        <label>Expiry Date</label>
-        <input id="itemExpiry" type="date">
-      </div>
-
-    </div>
-
-    <div class="actions">
-      <button class="btn-green" onclick="addItem()">
-        + Add Item
-      </button>
-
-      <button class="btn-gray" onclick="clearItem()">
-        Clear
-      </button>
-    </div>
-
-  </div>
+</div>
+</div>
 
 
-  <div class="card">
+<div class="card">
 
-    <div class="card-title">
-      Items
-    </div>
+<h3>Item Entry</h3>
 
-    <div style="overflow:auto">
+<div class="grid">
 
-      <table>
+<div class="field full">
 
-        <thead>
-          <tr>
-            <th>SKU</th>
-            <th>Barcode</th>
-            <th>Item Name</th>
-            <th>UOM</th>
-            <th>Cost</th>
-            <th>Qty</th>
-            <th>Expiry</th>
-            <th>Action</th>
-          </tr>
-        </thead>
+<label>Barcode / SKU</label>
 
-        <tbody id="itemsBody"></tbody>
+<input
+id="barcodeInput"
+placeholder="Enter or scan Barcode / SKU"
+autocomplete="off"
+oninput="lookupItem()"
+onkeydown="barcodeEnter(event)">
 
-      </table>
+</div>
 
-    </div>
+<div class="field">
+<label>SKU</label>
+<input id="itemSku" readonly>
+</div>
 
-    <div class="actions">
+<div class="field">
+<label>EN Description</label>
+<input id="itemName" readonly>
+</div>
 
-      <button class="btn-orange" onclick="saveDraft()">
-        Save Draft
-      </button>
+<div class="field">
+<label>UOM</label>
+<input id="itemUom" readonly>
+</div>
 
-      <button class="btn-green" onclick="submitExpiry()">
-        Submit
-      </button>
+<div class="field">
+<label>Cost</label>
+<input id="itemCost" readonly>
+</div>
 
-      <button class="btn-gray" onclick="showPage('homePage')">
-        Back
-      </button>
+<div class="field">
+<label>Default Supplier</label>
+<input id="itemSupplier" readonly>
+</div>
 
-    </div>
+<div class="field">
+<label>Vendor Code</label>
+<input id="itemVendor" readonly>
+</div>
 
-  </div>
+<div class="field">
+<label>Firebase Category</label>
+<input id="itemCategory" readonly>
+</div>
+
+<div class="field">
+<label>Quantity</label>
+<input id="itemQty" type="number" min="0">
+</div>
+
+<div class="field">
+<label>Expiry Date</label>
+<input id="itemExpiry" type="date">
+</div>
+
+</div>
+
+<div id="itemMessage" class="message"></div>
+
+<div class="actions">
+
+<button class="green" onclick="addItem()">
++ Add Item
+</button>
+
+<button class="light" onclick="clearItem()">
+Clear
+</button>
+
+</div>
+
+</div>
+
+
+<div class="card">
+
+<h3>Expiry Items</h3>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+
+<tr>
+<th>SKU</th>
+<th>Barcode</th>
+<th>Description</th>
+<th>Category</th>
+<th>UOM</th>
+<th>Cost</th>
+<th>Qty</th>
+<th>Expiry</th>
+<th>Action</th>
+</tr>
+
+</thead>
+
+<tbody id="itemsBody"></tbody>
+
+</table>
+
+</div>
+
+<div class="actions">
+
+<button class="orange" onclick="saveDraft()">
+Save Draft
+</button>
+
+<button class="green" onclick="submitExpiry()">
+Submit
+</button>
+
+<button class="gray" onclick="showPage('homePage')">
+Back
+</button>
+
+</div>
+
+</div>
 
 </section>
 
 
-<!-- =========================================================
-     ADMIN PANEL
-========================================================= -->
+<!-- =====================================================
+ADMIN LOGIN
+===================================================== -->
+
+<section id="adminLoginPage" class="page">
+
+<div class="card login-box">
+
+<div class="login-title">
+🔐 Admin Login
+</div>
+
+<div id="loginMessage" class="message"></div>
+
+<div class="field">
+<label>Admin Email</label>
+<input id="adminEmail" type="email">
+</div>
+
+<br>
+
+<div class="field">
+<label>Password</label>
+<input id="adminPassword" type="password">
+</div>
+
+<div class="actions">
+
+<button class="blue" onclick="adminLogin()">
+Login
+</button>
+
+<button class="gray" onclick="showPage('homePage')">
+Back
+</button>
+
+</div>
+
+</div>
+
+</section>
+
+
+<!-- =====================================================
+ADMIN PANEL
+===================================================== -->
 
 <section id="adminPage" class="page">
 
-  <div class="hero">
+<div class="hero">
 
-    <h1>⚙ Admin Panel</h1>
+<h1>⚙ Admin Panel</h1>
 
-    <p>
-      Control Firebase master data used by the GitHub form.
-      Changes are reflected automatically in the form.
-    </p>
+<p>
+Only authenticated administrators can change master data.
+</p>
 
-  </div>
+<div class="actions">
 
-  <div class="card">
+<button class="red" onclick="adminLogout()">
+Logout
+</button>
 
-    <div class="stat-grid">
+<button class="gray" onclick="showPage('homePage')">
+Home
+</button>
 
-      <div class="stat">
-        <div id="storeCount" class="stat-number">0</div>
-        <div class="stat-label">Stores</div>
-      </div>
-
-      <div class="stat">
-        <div id="categoryCount" class="stat-number">0</div>
-        <div class="stat-label">Categories</div>
-      </div>
-
-      <div class="stat">
-        <div id="productCount" class="stat-number">0</div>
-        <div class="stat-label">Products</div>
-      </div>
-
-      <div class="stat">
-        <div id="submissionCount" class="stat-number">0</div>
-        <div class="stat-label">Submissions</div>
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <div class="card">
-
-    <div class="admin-tabs">
-
-      <button
-        class="admin-tab active"
-        onclick="openAdminTab('stores',this)">
-        🏪 Stores
-      </button>
-
-      <button
-        class="admin-tab"
-        onclick="openAdminTab('categories',this)">
-        📂 Categories
-      </button>
-
-      <button
-        class="admin-tab"
-        onclick="openAdminTab('assignments',this)">
-        🔗 Store Categories
-      </button>
-
-      <button
-        class="admin-tab"
-        onclick="openAdminTab('products',this)">
-        📦 Products
-      </button>
-
-      <button
-        class="admin-tab"
-        onclick="openAdminTab('firebase',this)">
-        ☁ Firebase
-      </button>
-
-    </div>
-
-
-<!-- STORES -->
-
-<div id="adminStores" class="admin-panel active">
-
-  <div class="card-title">
-    Store Management
-  </div>
-
-  <div class="grid">
-
-    <div class="field">
-      <label>Store Code</label>
-      <input id="adminStoreCode">
-    </div>
-
-    <div class="field">
-      <label>Store Name</label>
-      <input id="adminStoreName">
-    </div>
-
-    <div class="field">
-      <label>Area Manager</label>
-      <input id="adminAreaManager">
-    </div>
-
-    <div class="field">
-      <label>Operation Manager</label>
-      <input id="adminOperationManager">
-    </div>
-
-    <div class="field">
-      <label>Email</label>
-      <input id="adminStoreEmail">
-    </div>
-
-    <div class="field">
-      <label>Classification</label>
-
-      <select id="adminClassification">
-        <option value="">Select</option>
-        <option>A</option>
-        <option>B</option>
-        <option>C</option>
-        <option>D</option>
-        <option>Z</option>
-        <option>HR</option>
-        <option>MT</option>
-        <option>X</option>
-      </select>
-
-    </div>
-
-  </div>
-
-  <div class="actions">
-
-    <button class="btn-green" onclick="saveStore()">
-      Save Store
-    </button>
-
-    <button class="btn-gray" onclick="clearStoreForm()">
-      Clear
-    </button>
-
-  </div>
-
-  <br>
-
-  <div style="overflow:auto">
-
-    <table>
-
-      <thead>
-        <tr>
-          <th>Code</th>
-          <th>Store Name</th>
-          <th>Area Manager</th>
-          <th>Operation Manager</th>
-          <th>Classification</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-
-      <tbody id="storesTable"></tbody>
-
-    </table>
-
-  </div>
+</div>
 
 </div>
 
 
-<!-- CATEGORIES -->
+<div class="stats">
 
-<div id="adminCategories" class="admin-panel">
+<div class="stat">
+<div id="storeCount" class="stat-number">0</div>
+<div class="stat-label">Stores</div>
+</div>
 
-  <div class="card-title">
-    Category Management
-  </div>
+<div class="stat">
+<div id="categoryCount" class="stat-number">0</div>
+<div class="stat-label">Categories</div>
+</div>
 
-  <div class="grid">
+<div class="stat">
+<div id="productCount" class="stat-number">0</div>
+<div class="stat-label">Items</div>
+</div>
 
-    <div class="field">
-      <label>Category Name</label>
-      <input
-        id="adminCategoryName"
-        placeholder="Example: Dairy">
-    </div>
-
-  </div>
-
-  <div class="actions">
-
-    <button class="btn-green" onclick="saveCategory()">
-      Add / Update Category
-    </button>
-
-  </div>
-
-  <br>
-
-  <table>
-
-    <thead>
-      <tr>
-        <th>Category</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-
-    <tbody id="categoriesTable"></tbody>
-
-  </table>
+<div class="stat">
+<div id="submissionCount" class="stat-number">0</div>
+<div class="stat-label">Submissions</div>
+</div>
 
 </div>
 
 
-<!-- STORE CATEGORY -->
+<div class="card">
 
-<div id="adminAssignments" class="admin-panel">
+<div class="admin-tabs">
 
-  <div class="card-title">
-    Store → Category Assignment
-  </div>
+<button class="admin-tab active"
+onclick="openAdminTab('stores',this)">
+🏪 Stores
+</button>
 
-  <div class="grid">
+<button class="admin-tab"
+onclick="openAdminTab('categories',this)">
+📂 Categories
+</button>
 
-    <div class="field">
-      <label>Store Code</label>
+<button class="admin-tab"
+onclick="openAdminTab('assignment',this)">
+🔗 Store Categories
+</button>
 
-      <select id="assignmentStore"></select>
-
-    </div>
-
-    <div class="field">
-      <label>Category</label>
-
-      <select id="assignmentCategory"></select>
-
-    </div>
-
-  </div>
-
-  <div class="actions">
-
-    <button class="btn-green" onclick="assignCategory()">
-      Assign Category
-    </button>
-
-    <button class="btn-red" onclick="removeCategoryAssignment()">
-      Remove
-    </button>
-
-  </div>
-
-  <br>
-
-  <table>
-
-    <thead>
-      <tr>
-        <th>Store</th>
-        <th>Store Name</th>
-        <th>Category</th>
-      </tr>
-    </thead>
-
-    <tbody id="assignmentTable"></tbody>
-
-  </table>
+<button class="admin-tab"
+onclick="openAdminTab('data',this)">
+📦 Data / Items
+</button>
 
 </div>
 
 
-<!-- PRODUCTS -->
+<!-- ================= STORES ================= -->
 
-<div id="adminProducts" class="admin-panel">
+<div id="adminStores" class="admin-section active">
 
-  <div class="card-title">
-    Firebase Product Master
-  </div>
+<h3>Store Management</h3>
 
-  <p style="color:#64748b;font-size:13px">
-    Product information is read from <b>/Data</b>.
-    If your Google Sheet synchronization updates Firebase,
-    this list updates automatically.
-  </p>
+<div class="grid">
 
-  <div class="grid">
+<div class="field">
+<label>Store Code</label>
+<input id="adminStoreCode">
+</div>
 
-    <div class="field full">
-      <label>Search SKU / Barcode / Description</label>
+<div class="field">
+<label>Store Name</label>
+<input id="adminStoreName">
+</div>
 
-      <input
-        id="productSearch"
-        oninput="renderProducts()"
-        placeholder="Search...">
+<div class="field">
+<label>Area Manager</label>
+<input id="adminAreaManager">
+</div>
 
-    </div>
+<div class="field">
+<label>Operation Manager</label>
+<input id="adminOperationManager">
+</div>
 
-  </div>
+<div class="field">
+<label>Email</label>
+<input id="adminStoreEmail">
+</div>
 
-  <br>
+<div class="field">
+<label>Classification</label>
+<input id="adminClassification">
+</div>
 
-  <div style="overflow:auto;max-height:550px">
+</div>
 
-    <table>
+<div class="actions">
 
-      <thead>
-        <tr>
-          <th>SKU</th>
-          <th>Barcode</th>
-          <th>UOM</th>
-          <th>Description</th>
-          <th>Cost</th>
-          <th>Supplier</th>
-          <th>Vendor</th>
-          <th>Category</th>
-        </tr>
-      </thead>
+<button class="green" onclick="saveStore()">
+Save Store
+</button>
 
-      <tbody id="productsTable"></tbody>
+<button class="light" onclick="clearStoreForm()">
+Clear
+</button>
 
-    </table>
+</div>
 
-  </div>
+<br>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+<tr>
+<th>Code</th>
+<th>Store</th>
+<th>Area Manager</th>
+<th>Operation Manager</th>
+<th>Classification</th>
+<th>Action</th>
+</tr>
+</thead>
+
+<tbody id="storesTable"></tbody>
+
+</table>
+
+</div>
 
 </div>
 
 
-<!-- FIREBASE -->
+<!-- ================= CATEGORIES ================= -->
 
-<div id="adminFirebase" class="admin-panel">
+<div id="adminCategories" class="admin-section">
 
-  <div class="card-title">
-    Firebase Connection
-  </div>
+<h3>Category Management</h3>
 
-  <div class="grid">
+<div class="grid">
 
-    <div class="field">
-      <label>Project</label>
-      <input value="expiry-monitoring-v2" readonly>
-    </div>
+<div class="field">
+<label>Category Name</label>
+<input
+id="adminCategoryName"
+placeholder="Example: Dairy">
+</div>
 
-    <div class="field">
-      <label>Database</label>
-      <input value="Realtime Database" readonly>
-    </div>
+</div>
 
-    <div class="field">
-      <label>Data Path</label>
-      <input value="/Data" readonly>
-    </div>
+<div class="actions">
 
-    <div class="field">
-      <label>Store Path</label>
-      <input value="/storeMaster" readonly>
-    </div>
+<button class="green" onclick="saveCategory()">
+Add / Update Category
+</button>
 
-  </div>
+</div>
 
-  <br>
+<br>
 
-  <div id="firebaseAdminMessage" class="message"></div>
+<table>
 
-  <div class="actions">
+<thead>
+<tr>
+<th>Category</th>
+<th>Status</th>
+<th>Action</th>
+</tr>
+</thead>
 
-    <button class="btn-blue" onclick="reloadFirebaseData()">
-      ↻ Reload Firebase
-    </button>
+<tbody id="categoriesTable"></tbody>
 
-    <button class="btn-orange" onclick="testFirebase()">
-      Test Connection
-    </button>
+</table>
 
-  </div>
+</div>
+
+
+<!-- ================= ASSIGNMENT ================= -->
+
+<div id="adminAssignment" class="admin-section">
+
+<h3>Store → Category Assignment</h3>
+
+<div class="grid">
+
+<div class="field">
+<label>Store</label>
+<select id="assignmentStore"
+onchange="renderStoreCategoryChecks()">
+</select>
+</div>
+
+</div>
+
+<br>
+
+<div id="categoryChecks"
+class="checkbox-list">
+Select Store
+</div>
+
+<div class="actions">
+
+<button class="green"
+onclick="saveStoreCategories()">
+Save Store Categories
+</button>
+
+</div>
+
+</div>
+
+
+<!-- ================= DATA ================= -->
+
+<div id="adminData" class="admin-section">
+
+<h3>Firebase Item Master</h3>
+
+<div class="grid">
+
+<div class="field full">
+<label>Search SKU / Barcode / Description</label>
+<input
+id="dataSearch"
+oninput="renderDataTable()"
+placeholder="Search...">
+</div>
+
+</div>
+
+<hr>
+
+<h3>Add / Edit Item</h3>
+
+<div class="grid">
+
+<div class="field">
+<label>SKU</label>
+<input id="dataSku">
+</div>
+
+<div class="field">
+<label>Barcode</label>
+<input id="dataBarcode">
+</div>
+
+<div class="field">
+<label>UOM</label>
+<input id="dataUom">
+</div>
+
+<div class="field">
+<label>EN Desc</label>
+<input id="dataDesc">
+</div>
+
+<div class="field">
+<label>Cost</label>
+<input id="dataCost" type="number">
+</div>
+
+<div class="field">
+<label>Default Supplier</label>
+<input id="dataSupplier">
+</div>
+
+<div class="field">
+<label>Vendor Code</label>
+<input id="dataVendor">
+</div>
+
+<div class="field">
+<label>Category</label>
+<select id="dataCategory"></select>
+</div>
+
+<div class="field">
+<label>Returnable</label>
+<input id="dataReturnable">
+</div>
+
+<div class="field">
+<label>Qty</label>
+<input id="dataQty" type="number">
+</div>
+
+</div>
+
+<div class="actions">
+
+<button class="green" onclick="saveDataItem()">
+Save Item
+</button>
+
+<button class="light" onclick="clearDataForm()">
+Clear
+</button>
+
+</div>
+
+<br>
+
+<div class="table-wrap">
+
+<table>
+
+<thead>
+
+<tr>
+<th>SKU</th>
+<th>Barcode</th>
+<th>Description</th>
+<th>UOM</th>
+<th>Cost</th>
+<th>Supplier</th>
+<th>Vendor</th>
+<th>Category</th>
+<th>Action</th>
+</tr>
+
+</thead>
+
+<tbody id="dataTable"></tbody>
+
+</table>
 
 </div>
 
@@ -1034,8 +904,6 @@ tr:hover td{
 
 </div>
 
-
-<!-- Firebase SDK -->
 
 <script type="module" src="./app.js"></script>
 
