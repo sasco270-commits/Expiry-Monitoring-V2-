@@ -1,2326 +1,2233 @@
 import {
-  initializeApp
+ initializeApp
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
 
 import {
-  getDatabase,
-  ref,
-  onValue,
-  set,
-  push,
-  remove,
-  get,
-  update
+ getDatabase,
+ ref,
+ get,
+ set,
+ update,
+ remove,
+ push,
+ onValue
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
 
 import {
-  getAuth,
-  signInAnonymously,
-  onAuthStateChanged
+ getAuth,
+ signInAnonymously,
+ signInWithEmailAndPassword,
+ signOut,
+ onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 
 
 /* =========================================================
-   FIREBASE CONFIG
+ FIREBASE
 ========================================================= */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDXTkoz1xSpsWYuMUv-Wvm57TF0ajj0p9M9",
-  authDomain: "expiry-monitoring-v2.firebaseapp.com",
-  projectId: "expiry-monitoring-v2",
-  storageBucket: "expiry-monitoring-v2.firebasestorage.app",
-  messagingSenderId: "722745088244",
-  appId: "1:722745088244:web:17a4f2854a98ee6f6366a1",
-  measurementId: "G-YPXSVPRK36"
+ apiKey:"AIzaSyDXTkoz1xSpsWYuMV-Wvm57TF0ajj0p9M9",
+ authDomain:"expiry-monitoring-v2.firebaseapp.com",
+ projectId:"expiry-monitoring-v2",
+ storageBucket:"expiry-monitoring-v2.firebasestorage.app",
+ messagingSenderId:"722745088244",
+ appId:"1:722745088244:web:17a4f2854a98ee6f6366a1",
+ measurementId:"G-YPXSVPRK36",
+ databaseURL:"https://expiry-monitoring-v2-default-rtdb.firebaseio.com"
 };
 
-
-/* =========================================================
-   INITIALIZE
-========================================================= */
-
-const app = initializeApp(firebaseConfig);
-
-const db = getDatabase(app);
-
-const auth = getAuth(app);
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
+const auth=getAuth(app);
 
 
 /* =========================================================
-   GLOBAL DATA
+ GLOBAL DATA
 ========================================================= */
 
-let firebaseReady = false;
+let stores={};
+let categories={};
+let storeCategories={};
+let products=[];
+let productMap={};
+let submissions={};
 
-let storeMaster = {};
+let currentStore=null;
+let currentProduct=null;
+let currentItems=[];
 
-let productData = [];
-
-let dataHeaders = [];
-
-let categories = {};
-
-let storeCategories = {};
-
-let submissions = {};
-
-let currentItems = [];
-
-let currentProduct = null;
-
-let currentStore = null;
+let adminUser=null;
 
 
 /* =========================================================
-   AUTHENTICATION
+ AUTH
 ========================================================= */
 
-signInAnonymously(auth)
-  .then(() => {
-    console.log("Anonymous authentication started.");
-  })
-  .catch(error => {
-
-    console.error(error);
-
-    setFirebaseStatus(
-      "Authentication Error",
-      "error"
-    );
-
-  });
+signInAnonymously(auth).catch(error=>{
+ console.error("Anonymous login:",error);
+});
 
 
-onAuthStateChanged(auth, user => {
+onAuthStateChanged(auth,user=>{
 
-  if (!user) {
-    setFirebaseStatus(
-      "Not Connected",
-      "error"
-    );
+ if(!user){
+  setStatus("Not Connected","err");
+  return;
+ }
 
-    return;
-  }
+ if(user.isAnonymous){
 
-  firebaseReady = true;
+  setStatus("Firebase Connected","ok");
 
-  setFirebaseStatus(
-    "Firebase Connected",
-    "connected"
-  );
+  startRealtime();
 
-  startFirebaseListeners();
+ }
 
 });
 
 
-/* =========================================================
-   FIREBASE STATUS
-========================================================= */
+function setStatus(text,type){
 
-function setFirebaseStatus(text, type) {
+ const el=document.getElementById("firebaseStatus");
 
-  const el = document.getElementById(
-    "firebaseStatus"
-  );
+ if(!el)return;
 
-  if (!el) return;
-
-  el.textContent = text;
-
-  el.className = "status " + (type || "");
+ el.textContent=text;
+ el.className="status "+type;
 
 }
 
 
 /* =========================================================
-   REALTIME FIREBASE LISTENERS
+ REALTIME FIREBASE
 ========================================================= */
 
-function startFirebaseListeners() {
+function startRealtime(){
 
-  /*
-   STORE MASTER
-  */
-
-  onValue(
-    ref(db, "storeMaster"),
-    snapshot => {
-
-      storeMaster =
-        snapshot.val() || {};
-
-      renderStoreTable();
-
-      populateStoreSelectors();
-
-      updateStoreCount();
-
-      console.log(
-        "storeMaster updated",
-        storeMaster
-      );
-
-    },
-    error => {
-
-      console.error(
-        "storeMaster:",
-        error
-      );
-
-    }
-  );
-
-
-  /*
-   DATA
-  */
-
-  onValue(
-    ref(db, "Data"),
-    snapshot => {
-
-      const value =
-        snapshot.val() || {};
-
-      processProductData(value);
-
-      renderProducts();
-
-      updateProductCount();
-
-      console.log(
-        "Data updated",
-        productData.length
-      );
-
-    },
-    error => {
-
-      console.error(
-        "Data:",
-        error
-      );
-
-    }
-  );
-
-
-  /*
-   CATEGORIES
-  */
-
-  onValue(
-    ref(db, "categories"),
-    snapshot => {
-
-      categories =
-        snapshot.val() || {};
-
-      renderCategoryTable();
-
-      populateCategorySelectors();
-
-      updateCategoryCount();
-
-    }
-  );
-
-
-  /*
-   STORE CATEGORIES
-  */
-
-  onValue(
-    ref(db, "storeCategories"),
-    snapshot => {
-
-      storeCategories =
-        snapshot.val() || {};
-
-      renderAssignmentTable();
-
-    }
-  );
-
-
-  /*
-   SUBMISSIONS
-  */
-
-  onValue(
-    ref(db, "expiryMonitoring/submissions"),
-    snapshot => {
-
-      submissions =
-        snapshot.val() || {};
-
-      updateSubmissionCount();
-
-    }
-  );
-
-}
-
-
-/* =========================================================
-   PROCESS DATA
-========================================================= */
-
-function processProductData(value) {
-
-  productData = [];
-
-  dataHeaders = [];
-
-  /*
-   Your Firebase Data currently looks like:
-
-   Data
-      headers
-        0 SKU
-        1 Barcodes
-        2 UOM
-        3 EN Desc
-        ...
-   */
-
-  if (
-    value &&
-    Array.isArray(value.headers)
-  ) {
-
-    dataHeaders = value.headers;
-
+ onValue(
+  ref(db,"storeMaster"),
+  snap=>{
+   stores=snap.val()||{};
+   renderStoreTable();
+   populateStoreSelector();
+   updateCounts();
   }
+ );
 
 
-  /*
-   If Data is an array
-  */
+ onValue(
+  ref(db,"categories"),
+  snap=>{
+   categories=snap.val()||{};
+   renderCategoryTable();
+   populateCategorySelectors();
+   renderStoreCategoryChecks();
+   updateCounts();
+  }
+ );
 
-  if (Array.isArray(value)) {
 
-    productData =
-      value.map(row => {
+ onValue(
+  ref(db,"storeCategories"),
+  snap=>{
+   storeCategories=snap.val()||{};
+   renderStoreCategoryChecks();
+  }
+ );
 
-        if (Array.isArray(row)) {
 
-          return arrayRowToProduct(row);
+ onValue(
+  ref(db,"Data"),
+  snap=>{
+   processData(snap.val()||{});
+   renderDataTable();
+   updateCounts();
+  }
+ );
 
-        }
 
-        return row;
+ onValue(
+  ref(db,"expiryMonitoring/submissions"),
+  snap=>{
+   submissions=snap.val()||{};
+   updateCounts();
+  }
+ );
 
-      });
+}
 
+
+/* =========================================================
+ DATA PROCESSOR
+========================================================= */
+
+function processData(data){
+
+ products=[];
+ productMap={};
+
+ /*
+ Existing structure:
+ Data
+   headers
+     0 SKU
+     1 Barcodes
+     ...
+ */
+
+ let headers=
+  Array.isArray(data.headers)
+   ? data.headers
+   : [];
+
+
+ /*
+ Direct /Data/items structure
+ */
+
+ if(
+  data.items &&
+  typeof data.items==="object"
+ ){
+
+  Object.entries(data.items)
+   .forEach(([id,item])=>{
+
+    if(!item)return;
+
+    const product={
+     ...item,
+     _id:id
+    };
+
+    products.push(product);
+
+    indexProduct(product);
+
+   });
+
+ }
+
+
+ /*
+ Other records directly under /Data
+ */
+
+ Object.entries(data)
+  .forEach(([key,value])=>{
+
+   if(key==="headers"||key==="items")
     return;
 
-  }
+   if(!value)
+    return;
 
+   if(Array.isArray(value)){
 
-  /*
-   If Data contains rows / records
-  */
+    const product=
+     rowToProduct(value,headers);
 
-  const keys =
-    Object.keys(value || {});
+    if(product){
 
+     product._id=key;
 
-  keys.forEach(key => {
+     products.push(product);
 
-    if (key === "headers") return;
-
-    const row = value[key];
-
-    if (Array.isArray(row)) {
-
-      productData.push(
-        arrayRowToProduct(row)
-      );
-
-    } else if (
-      row &&
-      typeof row === "object"
-    ) {
-
-      productData.push(row);
+     indexProduct(product);
 
     }
+
+   }
+   else if(
+    typeof value==="object"
+   ){
+
+    if(
+     value.SKU ||
+     value.sku ||
+     value.Barcodes ||
+     value.Barcode
+    ){
+
+     const product={
+      ...value,
+      _id:key
+     };
+
+     products.push(product);
+
+     indexProduct(product);
+
+    }
+
+   }
 
   });
 
 }
 
 
-function arrayRowToProduct(row) {
+function rowToProduct(row,headers){
 
-  const obj = {};
+ if(!headers.length)
+  return null;
 
-  dataHeaders.forEach(
-    (header, index) => {
+ const item={};
 
-      obj[
-        String(header)
-      ] = row[index];
+ headers.forEach(
+  (header,index)=>{
+   item[String(header)]=row[index];
+  }
+ );
 
-    }
-  );
+ return item;
 
-  return obj;
+}
+
+
+function indexProduct(item){
+
+ const sku=
+  String(
+   item.SKU||
+   item.sku||
+   ""
+  ).trim().toLowerCase();
+
+ const barcode=
+  String(
+   item.Barcodes||
+   item.Barcode||
+   item.barcode||
+   ""
+  ).trim().toLowerCase();
+
+ if(sku)
+  productMap["sku:"+sku]=item;
+
+ barcode
+  .split(/[,;|\/]+/)
+  .map(x=>x.trim())
+  .filter(Boolean)
+  .forEach(x=>{
+   productMap["barcode:"+x]=item;
+  });
 
 }
 
 
 /* =========================================================
-   STORE LOOKUP
+ STORE LOOKUP
 ========================================================= */
 
-window.lookupStore = function() {
+window.lookupStore=function(){
 
-  const code =
-    String(
-      document.getElementById(
-        "storeCode"
-      ).value || ""
-    ).trim();
+ const code=
+  document.getElementById("storeCode")
+   .value
+   .trim();
 
-  if (!code) {
+ if(!code){
 
-    clearStoreInformation();
+  clearStore();
 
-    return;
+  return;
 
-  }
+ }
 
-  const store =
-    findStore(code);
+ const store=findStore(code);
 
-  if (!store) {
+ if(!store){
 
-    clearStoreInformation();
+  clearStore();
 
-    showFormMessage(
-      "Store Code not found in Firebase storeMaster.",
-      "error"
-    );
-
-    return;
-
-  }
-
-  currentStore = store;
-
-  document.getElementById(
-    "storeName"
-  ).value =
-    store.storeName ||
-    store.name ||
-    store.palmStore ||
-    "";
-
-  document.getElementById(
-    "areaManager"
-  ).value =
-    store.areaManager || "";
-
-  document.getElementById(
-    "operationManager"
-  ).value =
-    store.operationManager || "";
-
-  showFormMessage(
-    "Store verified: " +
-    (
-      store.storeName ||
-      store.name ||
-      code
-    ),
-    "success"
+  formMessage(
+   "Store Code not found.",
+   "error"
   );
+
+  return;
+
+ }
+
+ currentStore=store;
+
+ document.getElementById("storeName").value=
+  store.storeName||
+  store.name||
+  "";
+
+ document.getElementById("areaManager").value=
+  store.areaManager||"";
+
+ document.getElementById("operationManager").value=
+  store.operationManager||"";
+
+ populateStoreCategories(code);
 
 };
 
 
-function findStore(code) {
+function findStore(code){
 
-  const target =
-    String(code)
-      .trim()
-      .toUpperCase();
+ const wanted=
+  String(code)
+   .trim()
+   .toUpperCase();
 
-  /*
-   Direct Firebase key
-  */
+ if(stores[code])
+  return normalizeStore(
+   code,
+   stores[code]
+  );
 
-  if (
-    storeMaster[target]
-  ) {
+ for(
+  const key of Object.keys(stores)
+ ){
 
-    return normalizeStore(
-      target,
-      storeMaster[target]
-    );
+  const s=stores[key]||{};
 
-  }
+  const possible=
+   String(
+    s.storeCode||
+    s.code||
+    key
+   )
+   .trim()
+   .toUpperCase();
 
-  /*
-   Search values
-  */
+  if(possible===wanted)
+   return normalizeStore(
+    key,
+    s
+   );
 
-  for (
-    const key of Object.keys(storeMaster)
-  ) {
+ }
 
-    const value =
-      storeMaster[key];
-
-    if (!value) continue;
-
-    const possible =
-      String(
-        value.storeCode ||
-        value.code ||
-        key
-      )
-      .trim()
-      .toUpperCase();
-
-    if (
-      possible === target
-    ) {
-
-      return normalizeStore(
-        key,
-        value
-      );
-
-    }
-
-  }
-
-  return null;
+ return null;
 
 }
 
 
-function normalizeStore(code, value) {
+function normalizeStore(code,s){
 
-  return {
-
-    code,
-
-    ...value,
-
-    storeName:
-      value.storeName ||
-      value.name ||
-      value.palmStore ||
-      code
-
-  };
+ return{
+  ...s,
+  code,
+  storeName:
+   s.storeName||
+   s.name||
+   s.palmStore||
+   code
+ };
 
 }
 
 
-function clearStoreInformation() {
+function clearStore(){
 
-  currentStore = null;
+ currentStore=null;
 
-  [
-    "storeName",
-    "areaManager",
-    "operationManager"
-  ].forEach(id => {
+ [
+  "storeName",
+  "areaManager",
+  "operationManager"
+ ].forEach(id=>{
+  document.getElementById(id).value="";
+ });
 
-    const el =
-      document.getElementById(id);
-
-    if (el) el.value = "";
-
-  });
+ document.getElementById(
+  "category"
+ ).innerHTML=
+  '<option value="">Select Category</option>';
 
 }
 
 
 /* =========================================================
-   BARCODE / SKU LOOKUP
+ STORE CATEGORY FILTER
 ========================================================= */
 
-window.lookupItem = function() {
+function populateStoreCategories(code){
 
-  const value =
-    String(
-      document.getElementById(
-        "barcodeInput"
-      ).value || ""
-    ).trim();
+ const select=
+  document.getElementById("category");
 
-  if (!value) {
+ select.innerHTML=
+  '<option value="">Select Category</option>';
 
-    currentProduct = null;
+ const assigned=
+  storeCategories[code]||{};
 
-    clearItemMasterFields();
+ let count=0;
 
+ Object.keys(assigned)
+  .forEach(categoryKey=>{
+
+   if(assigned[categoryKey]!==true)
     return;
 
-  }
+   const category=
+    categories[categoryKey];
 
-  const product =
-    findProduct(value);
-
-  if (!product) {
-
-    currentProduct = null;
-
-    clearItemMasterFields();
-
-    showItemLookup(
-      "No SKU / Barcode found in Firebase /Data.",
-      false
-    );
-
+   if(!category)
     return;
 
-  }
+   const active=
+    typeof category==="string"
+     ? true
+     : category.active!==false;
 
-  currentProduct = product;
+   if(!active)
+    return;
 
-  fillItemMaster(product);
+   const name=
+    typeof category==="string"
+     ? category
+     : category.name||categoryKey;
+
+   const option=
+    document.createElement("option");
+
+   option.value=name;
+   option.textContent=name;
+
+   select.appendChild(option);
+
+   count++;
+
+  });
+
+ if(!count){
+
+  formMessage(
+   "No category has been assigned to this store.",
+   "error"
+  );
+
+ }
+
+}
+
+
+window.categoryChanged=function(){
+
+ currentProduct=null;
+
+ clearItemFields();
 
 };
 
 
-function findProduct(search) {
-
-  const target =
-    String(search)
-      .trim()
-      .toLowerCase();
-
-  for (
-    const product of productData
-  ) {
-
-    if (!product) continue;
-
-    const sku =
-      String(
-        product["SKU"] ??
-        product.sku ??
-        ""
-      )
-      .trim()
-      .toLowerCase();
-
-    const barcode =
-      String(
-        product["Barcodes"] ??
-        product["Barcode"] ??
-        product.barcode ??
-        ""
-      )
-      .trim()
-      .toLowerCase();
-
-    /*
-      Some records may contain:
-
-      123456,123457
-      123456 / 123457
-      123456;123457
-    */
-
-    const barcodeParts =
-      barcode
-        .split(/[,;\/|]+/)
-        .map(x => x.trim())
-        .filter(Boolean);
-
-    if (
-      sku === target ||
-      barcode === target ||
-      barcodeParts.includes(target)
-    ) {
-
-      return product;
-
-    }
-
-  }
-
-  return null;
-
-}
-
-
 /* =========================================================
-   PRODUCT FORM
+ ITEM LOOKUP
 ========================================================= */
 
-function fillItemMaster(product) {
+window.lookupItem=function(){
 
+ const value=
   document.getElementById(
-    "itemSku"
-  ).value =
-    product["SKU"] ??
-    product.sku ??
-    "";
+   "barcodeInput"
+  ).value
+  .trim()
+  .toLowerCase();
 
-  document.getElementById(
-    "itemName"
-  ).value =
-    product["EN Desc"] ??
-    product["Item Name"] ??
-    product.itemName ??
-    "";
+ if(!value){
 
-  document.getElementById(
-    "itemUom"
-  ).value =
-    product["UOM"] ??
-    "";
+  clearItemFields();
 
-  document.getElementById(
-    "itemCost"
-  ).value =
-    product["Cost"] ??
-    "";
+  return;
 
-  document.getElementById(
-    "itemSupplier"
-  ).value =
-    product["Default Supplier"] ??
-    "";
+ }
 
-  document.getElementById(
-    "itemVendor"
-  ).value =
-    product["Vendor Code"] ??
-    "";
+ const product=
+  productMap["sku:"+value]||
+  productMap["barcode:"+value];
 
-  showItemLookup(
-    "Item found successfully.",
-    true
+ if(!product){
+
+  clearItemFields();
+
+  itemMessage(
+   "Item not found in Firebase Data.",
+   "error"
   );
 
+  return;
+
+ }
+
+ const selectedCategory=
+  document.getElementById(
+   "category"
+  ).value
+  .trim()
+  .toLowerCase();
+
+ const firebaseCategory=
+  String(
+   product.Category||
+   product.category||
+   ""
+  )
+  .trim()
+  .toLowerCase();
+
+ /*
+ VERY IMPORTANT:
+ Item must belong to selected category.
+ */
+
+ if(
+  selectedCategory &&
+  firebaseCategory!==selectedCategory
+ ){
+
+  currentProduct=null;
+
+  clearItemFields();
+
+  itemMessage(
+   "ITEM NOT ALLOWED. Firebase category is '" +
+   (product.Category||
+    product.category||
+    "")+
+   "', but selected category is '" +
+   document.getElementById(
+    "category"
+   ).value+
+   "'.",
+   "error"
+  );
+
+  return;
+
+ }
+
+ currentProduct=product;
+
+ fillItemFields(product);
+
+ itemMessage(
+  "✓ Item found and category verified.",
+  "success"
+ );
+
+};
+
+
+function fillItemFields(p){
+
+ document.getElementById("itemSku").value=
+  p.SKU||p.sku||"";
+
+ document.getElementById("itemName").value=
+  p["EN Desc"]||
+  p["Item Name"]||
+  p.Description||
+  "";
+
+ document.getElementById("itemUom").value=
+  p.UOM||"";
+
+ document.getElementById("itemCost").value=
+  p.Cost||"";
+
+ document.getElementById("itemSupplier").value=
+  p["Default Supplier"]||
+  p.Supplier||
+  "";
+
+ document.getElementById("itemVendor").value=
+  p["Vendor Code"]||
+  p.VendorCode||
+  "";
+
+ document.getElementById("itemCategory").value=
+  p.Category||
+  p.category||
+  "";
+
 }
 
 
-function clearItemMasterFields() {
+function clearItemFields(){
 
-  [
-    "itemSku",
-    "itemName",
-    "itemUom",
-    "itemCost",
-    "itemSupplier",
-    "itemVendor"
-  ].forEach(id => {
-
-    const el =
-      document.getElementById(id);
-
-    if (el) el.value = "";
-
-  });
+ [
+  "itemSku",
+  "itemName",
+  "itemUom",
+  "itemCost",
+  "itemSupplier",
+  "itemVendor",
+  "itemCategory"
+ ].forEach(id=>{
+  document.getElementById(id).value="";
+ });
 
 }
 
 
-function showItemLookup(text, success) {
+window.barcodeEnter=function(e){
 
-  const el =
-    document.getElementById(
-      "itemLookupResult"
-    );
+ if(e.key==="Enter"){
 
-  if (!el) return;
-
-  el.textContent = text;
-
-  el.className =
-    "lookup-result show";
-
-  el.style.background =
-    success
-      ? "#f0fdf4"
-      : "#fef2f2";
-
-  el.style.borderColor =
-    success
-      ? "#bbf7d0"
-      : "#fecaca";
-
-}
-
-
-window.barcodeEnter = function(event) {
-
-  if (
-    event.key !== "Enter"
-  ) return;
-
-  event.preventDefault();
+  e.preventDefault();
 
   lookupItem();
 
+ }
+
 };
 
 
 /* =========================================================
-   ADD ITEM
+ ADD ITEM
 ========================================================= */
 
-window.addItem = function() {
+window.addItem=function(){
 
-  const barcode =
-    document.getElementById(
-      "barcodeInput"
-    ).value.trim();
+ if(!currentStore){
 
-  const qty =
-    Number(
-      document.getElementById(
-        "itemQty"
-      ).value
-    );
+  formMessage(
+   "Enter a valid Store Code.",
+   "error"
+  );
 
-  const expiry =
-    document.getElementById(
-      "itemExpiry"
-    ).value;
+  return;
 
-  if (!currentStore) {
+ }
 
-    showFormMessage(
-      "Please enter a valid Store Code first.",
-      "error"
-    );
+ if(
+  !document.getElementById(
+   "category"
+  ).value
+ ){
 
-    return;
+  formMessage(
+   "Select Category.",
+   "error"
+  );
+
+  return;
+
+ }
+
+ if(!currentProduct){
+
+  itemMessage(
+   "Enter a valid Barcode/SKU belonging to the selected category.",
+   "error"
+  );
+
+  return;
+
+ }
+
+ const qty=
+  Number(
+   document.getElementById(
+    "itemQty"
+   ).value
+  );
+
+ const expiry=
+  document.getElementById(
+   "itemExpiry"
+  ).value;
+
+ if(!qty||qty<=0){
+
+  itemMessage(
+   "Enter Quantity.",
+   "error"
+  );
+
+  return;
+
+ }
+
+ if(!expiry){
+
+  itemMessage(
+   "Enter Expiry Date.",
+   "error"
+  );
+
+  return;
+
+ }
+
+ currentItems.push({
+
+  sku:
+   currentProduct.SKU||
+   currentProduct.sku||
+   "",
+
+  barcode:
+   currentProduct.Barcodes||
+   currentProduct.Barcode||
+   document.getElementById(
+    "barcodeInput"
+   ).value,
+
+  itemName:
+   currentProduct["EN Desc"]||
+   currentProduct["Item Name"]||
+   "",
+
+  category:
+   currentProduct.Category||
+   currentProduct.category||
+   "",
+
+  uom:
+   currentProduct.UOM||
+   "",
+
+  cost:
+   Number(
+    currentProduct.Cost||0
+   ),
+
+  quantity:qty,
+
+  expiryDate:expiry,
+
+  supplier:
+   currentProduct["Default Supplier"]||
+   "",
+
+  vendorCode:
+   currentProduct["Vendor Code"]||
+   ""
+
+ });
+
+ renderItems();
+
+ clearItem();
+
+};
+
+
+function renderItems(){
+
+ const body=
+  document.getElementById(
+   "itemsBody"
+  );
+
+ body.innerHTML="";
+
+ currentItems.forEach(
+  (item,index)=>{
+
+   const tr=
+    document.createElement("tr");
+
+   tr.innerHTML=`
+
+   <td>${esc(item.sku)}</td>
+   <td>${esc(item.barcode)}</td>
+   <td>${esc(item.itemName)}</td>
+   <td>${esc(item.category)}</td>
+   <td>${esc(item.uom)}</td>
+   <td>${esc(item.cost)}</td>
+   <td>${esc(item.quantity)}</td>
+   <td>${esc(item.expiryDate)}</td>
+
+   <td>
+   <button
+    class="red"
+    onclick="removeItem(${index})">
+    Remove
+   </button>
+   </td>
+
+   `;
+
+   body.appendChild(tr);
 
   }
+ );
 
-  if (!currentProduct) {
+}
 
-    showFormMessage(
-      "Please enter a valid SKU or Barcode.",
-      "error"
+
+window.removeItem=function(index){
+
+ currentItems.splice(index,1);
+
+ renderItems();
+
+};
+
+
+window.clearItem=function(){
+
+ document.getElementById(
+  "barcodeInput"
+ ).value="";
+
+ document.getElementById(
+  "itemQty"
+ ).value="";
+
+ document.getElementById(
+  "itemExpiry"
+ ).value="";
+
+ currentProduct=null;
+
+ clearItemFields();
+
+ document.getElementById(
+  "itemMessage"
+ ).className="message";
+
+};
+
+
+/* =========================================================
+ SUBMIT / DRAFT
+========================================================= */
+
+window.saveDraft=async function(){
+
+ if(!validateForm())
+  return;
+
+ try{
+
+  const draft=
+   push(
+    ref(
+     db,
+     "expiryMonitoring/drafts"
+    )
+   );
+
+  await set(
+   draft,
+   buildSubmission("DRAFT")
+  );
+
+  formMessage(
+   "Draft saved successfully.",
+   "success"
+  );
+
+ }catch(e){
+
+  formMessage(
+   e.message,
+   "error"
+  );
+
+ }
+
+};
+
+
+window.submitExpiry=async function(){
+
+ if(!validateForm())
+  return;
+
+ try{
+
+  const record=
+   push(
+    ref(
+     db,
+     "expiryMonitoring/submissions"
+    )
+   );
+
+  await set(
+   record,
+   buildSubmission("SUBMITTED")
+  );
+
+  currentItems=[];
+
+  renderItems();
+
+  formMessage(
+   "Submission completed successfully.",
+   "success"
+  );
+
+ }catch(e){
+
+  formMessage(
+   e.message,
+   "error"
+  );
+
+ }
+
+};
+
+
+function validateForm(){
+
+ if(!currentStore){
+
+  formMessage(
+   "Valid Store Code is required.",
+   "error"
+  );
+
+  return false;
+
+ }
+
+ if(
+  !document.getElementById(
+   "category"
+  ).value
+ ){
+
+  formMessage(
+   "Category is required.",
+   "error"
+  );
+
+  return false;
+
+ }
+
+ if(!currentItems.length){
+
+  formMessage(
+   "Add at least one item.",
+   "error"
+  );
+
+  return false;
+
+ }
+
+ return true;
+
+}
+
+
+function buildSubmission(status){
+
+ return{
+
+  storeCode:currentStore.code,
+
+  storeName:
+   currentStore.storeName||"",
+
+  areaManager:
+   currentStore.areaManager||"",
+
+  operationManager:
+   currentStore.operationManager||"",
+
+  category:
+   document.getElementById(
+    "category"
+   ).value,
+
+  cycleStart:
+   document.getElementById(
+    "cycleStart"
+   ).value,
+
+  cycleEnd:
+   document.getElementById(
+    "cycleEnd"
+   ).value,
+
+  status,
+
+  items:currentItems,
+
+  submittedAt:
+   new Date().toISOString(),
+
+  source:"GitHub Firebase"
+
+ };
+
+}
+
+
+/* =========================================================
+ ADMIN LOGIN
+========================================================= */
+
+window.openAdminLogin=function(){
+
+ showPage("adminLoginPage");
+
+};
+
+
+window.adminLogin=async function(){
+
+ const email=
+  document.getElementById(
+   "adminEmail"
+  ).value.trim();
+
+ const password=
+  document.getElementById(
+   "adminPassword"
+  ).value;
+
+ if(!email||!password){
+
+  loginMessage(
+   "Enter admin email and password.",
+   "error"
+  );
+
+  return;
+
+ }
+
+ try{
+
+  const credential=
+   await signInWithEmailAndPassword(
+    auth,
+    email,
+    password
+   );
+
+  adminUser=credential.user;
+
+  showPage("adminPage");
+
+  loginMessage("","");
+
+ }catch(e){
+
+  loginMessage(
+   e.message,
+   "error"
+  );
+
+ }
+
+};
+
+
+window.adminLogout=async function(){
+
+ await signOut(auth);
+
+ adminUser=null;
+
+ signInAnonymously(auth);
+
+ showPage("homePage");
+
+};
+
+
+/* =========================================================
+ ADMIN TABS
+========================================================= */
+
+window.openAdminTab=function(
+ tab,
+ button
+){
+
+ document
+  .querySelectorAll(
+   ".admin-section"
+  )
+  .forEach(x=>{
+   x.classList.remove("active");
+  });
+
+ document
+  .querySelectorAll(
+   ".admin-tab"
+  )
+  .forEach(x=>{
+   x.classList.remove("active");
+  });
+
+ const section=
+  document.getElementById(
+   "admin"+
+   capitalize(tab)
+  );
+
+ if(section)
+  section.classList.add("active");
+
+ if(button)
+  button.classList.add("active");
+
+};
+
+
+function capitalize(x){
+
+ return x.charAt(0).toUpperCase()+
+  x.slice(1);
+
+}
+
+
+/* =========================================================
+ ADMIN STORE MANAGEMENT
+========================================================= */
+
+window.saveStore=async function(){
+
+ if(!adminUser){
+
+  alert("Admin login required.");
+
+  return;
+
+ }
+
+ const code=
+  document.getElementById(
+   "adminStoreCode"
+  ).value.trim();
+
+ if(!code){
+
+  alert("Store Code required.");
+
+  return;
+
+ }
+
+ const store={
+
+  storeName:
+   document.getElementById(
+    "adminStoreName"
+   ).value.trim(),
+
+  areaManager:
+   document.getElementById(
+    "adminAreaManager"
+   ).value.trim(),
+
+  operationManager:
+   document.getElementById(
+    "adminOperationManager"
+   ).value.trim(),
+
+  email:
+   document.getElementById(
+    "adminStoreEmail"
+   ).value.trim(),
+
+  classification:
+   document.getElementById(
+    "adminClassification"
+   ).value.trim(),
+
+  active:true,
+
+  updatedAt:
+   new Date().toISOString()
+
+ };
+
+ await set(
+  ref(
+   db,
+   "storeMaster/"+safeKey(code)
+  ),
+  store
+ );
+
+ clearStoreForm();
+
+ alert("Store saved.");
+
+};
+
+
+window.editStore=function(code){
+
+ const store=findStore(code);
+
+ if(!store)return;
+
+ document.getElementById(
+  "adminStoreCode"
+ ).value=code;
+
+ document.getElementById(
+  "adminStoreName"
+ ).value=
+  store.storeName||"";
+
+ document.getElementById(
+  "adminAreaManager"
+ ).value=
+  store.areaManager||"";
+
+ document.getElementById(
+  "adminOperationManager"
+ ).value=
+  store.operationManager||"";
+
+ document.getElementById(
+  "adminStoreEmail"
+ ).value=
+  store.email||"";
+
+ document.getElementById(
+  "adminClassification"
+ ).value=
+  store.classification||"";
+
+};
+
+
+window.deleteStore=async function(code){
+
+ if(!confirm(
+  "Delete Store "+code+"?"
+ ))
+ return;
+
+ await remove(
+  ref(
+   db,
+   "storeMaster/"+safeKey(code)
+  )
+ );
+
+};
+
+
+window.clearStoreForm=function(){
+
+ [
+  "adminStoreCode",
+  "adminStoreName",
+  "adminAreaManager",
+  "adminOperationManager",
+  "adminStoreEmail",
+  "adminClassification"
+ ].forEach(id=>{
+  document.getElementById(id).value="";
+ });
+
+};
+
+
+function renderStoreTable(){
+
+ const body=
+  document.getElementById(
+   "storesTable"
+  );
+
+ if(!body)return;
+
+ body.innerHTML="";
+
+ Object.keys(stores)
+  .sort()
+  .forEach(code=>{
+
+   const store=
+    normalizeStore(
+     code,
+     stores[code]||{}
     );
 
-    return;
+   const tr=
+    document.createElement("tr");
 
-  }
+   tr.innerHTML=`
 
-  if (!qty || qty <= 0) {
+   <td>${esc(code)}</td>
+   <td>${esc(store.storeName)}</td>
+   <td>${esc(store.areaManager)}</td>
+   <td>${esc(store.operationManager)}</td>
+   <td>${esc(store.classification)}</td>
 
-    showFormMessage(
-      "Enter Quantity.",
-      "error"
-    );
+   <td>
 
-    return;
+   <button
+    class="blue"
+    onclick="editStore('${js(code)}')">
+    Edit
+   </button>
 
-  }
+   <button
+    class="red"
+    onclick="deleteStore('${js(code)}')">
+    Delete
+   </button>
 
-  if (!expiry) {
+   </td>
+   `;
 
-    showFormMessage(
-      "Enter Expiry Date.",
-      "error"
-    );
-
-    return;
-
-  }
-
-  currentItems.push({
-
-    sku:
-      currentProduct["SKU"] ||
-      currentProduct.sku ||
-      "",
-
-    barcode,
-
-    itemName:
-      currentProduct["EN Desc"] ||
-      currentProduct["Item Name"] ||
-      "",
-
-    uom:
-      currentProduct["UOM"] ||
-      "",
-
-    cost:
-      Number(
-        currentProduct["Cost"] || 0
-      ),
-
-    quantity:qty,
-
-    expiryDate:expiry,
-
-    supplier:
-      currentProduct["Default Supplier"] ||
-      "",
-
-    vendorCode:
-      currentProduct["Vendor Code"] ||
-      ""
+   body.appendChild(tr);
 
   });
 
-  renderItems();
-
-  clearItem();
-
-};
+}
 
 
 /* =========================================================
-   CLEAR ITEM
+ CATEGORY MANAGEMENT
 ========================================================= */
 
-window.clearItem = function() {
+window.saveCategory=async function(){
 
+ if(!adminUser){
+
+  alert("Admin login required.");
+
+  return;
+
+ }
+
+ const name=
   document.getElementById(
-    "barcodeInput"
-  ).value = "";
+   "adminCategoryName"
+  ).value.trim();
 
-  document.getElementById(
-    "itemQty"
-  ).value = "";
+ if(!name){
 
-  document.getElementById(
-    "itemExpiry"
-  ).value = "";
+  alert("Enter category.");
 
-  currentProduct = null;
+  return;
 
-  clearItemMasterFields();
+ }
 
-  const result =
-    document.getElementById(
-      "itemLookupResult"
-    );
+ const key=
+  safeKey(name);
 
-  if (result) {
-
-    result.className =
-      "lookup-result";
-
+ await set(
+  ref(
+   db,
+   "categories/"+key
+  ),
+  {
+   name:name,
+   active:true,
+   updatedAt:
+    new Date().toISOString()
   }
+ );
+
+ document.getElementById(
+  "adminCategoryName"
+ ).value="";
 
 };
 
 
-/* =========================================================
-   RENDER ITEMS
-========================================================= */
+window.deleteCategory=async function(key){
 
-function renderItems() {
+ if(!confirm(
+  "Delete this category?"
+ ))
+ return;
 
-  const body =
-    document.getElementById(
-      "itemsBody"
-    );
+ await remove(
+  ref(
+   db,
+   "categories/"+key
+  )
+ );
 
-  body.innerHTML = "";
+};
 
-  currentItems.forEach(
-    (item,index) => {
 
-      const tr =
-        document.createElement(
-          "tr"
-        );
+function renderCategoryTable(){
 
-      tr.innerHTML = `
-
-        <td>${escapeHtml(item.sku)}</td>
-
-        <td>${escapeHtml(item.barcode)}</td>
-
-        <td>${escapeHtml(item.itemName)}</td>
-
-        <td>${escapeHtml(item.uom)}</td>
-
-        <td>${formatNumber(item.cost)}</td>
-
-        <td>${formatNumber(item.quantity)}</td>
-
-        <td>${escapeHtml(item.expiryDate)}</td>
-
-        <td>
-          <button
-            class="btn-red"
-            onclick="removeItem(${index})">
-            Remove
-          </button>
-        </td>
-
-      `;
-
-      body.appendChild(tr);
-
-    }
+ const body=
+  document.getElementById(
+   "categoriesTable"
   );
 
+ if(!body)return;
+
+ body.innerHTML="";
+
+ Object.keys(categories)
+  .sort()
+  .forEach(key=>{
+
+   const c=
+    categories[key];
+
+   const name=
+    typeof c==="string"
+     ? c
+     : c.name||key;
+
+   const active=
+    typeof c==="string"
+     ? true
+     : c.active!==false;
+
+   const tr=
+    document.createElement("tr");
+
+   tr.innerHTML=`
+
+   <td>${esc(name)}</td>
+
+   <td>
+   <span class="badge">
+   ${active?"Active":"Inactive"}
+   </span>
+   </td>
+
+   <td>
+
+   <button
+    class="red"
+    onclick="deleteCategory('${js(key)}')">
+    Delete
+   </button>
+
+   </td>
+
+   `;
+
+   body.appendChild(tr);
+
+  });
+
 }
 
 
-window.removeItem = function(index) {
+/* =========================================================
+ STORE CATEGORY ASSIGNMENT
+========================================================= */
 
-  currentItems.splice(
-    index,
-    1
+function populateStoreSelector(){
+
+ const select=
+  document.getElementById(
+   "assignmentStore"
   );
 
-  renderItems();
+ if(!select)return;
 
-};
+ const current=
+  select.value;
 
+ select.innerHTML=
+  '<option value="">Select Store</option>';
 
-/* =========================================================
-   SAVE DRAFT
-========================================================= */
+ Object.keys(stores)
+  .sort()
+  .forEach(code=>{
 
-window.saveDraft = async function() {
-
-  if (!validateSubmission())
-    return;
-
-  try {
-
-    const draftRef =
-      push(
-        ref(
-          db,
-          "expiryMonitoring/drafts"
-        )
-      );
-
-    await set(
-      draftRef,
-      buildSubmissionObject(
-        "DRAFT"
-      )
-    );
-
-    showFormMessage(
-      "Draft saved successfully.",
-      "success"
-    );
-
-  } catch(error) {
-
-    console.error(error);
-
-    showFormMessage(
-      "Draft save failed: " +
-      error.message,
-      "error"
-    );
-
-  }
-
-};
-
-
-/* =========================================================
-   SUBMIT
-========================================================= */
-
-window.submitExpiry = async function() {
-
-  if (!validateSubmission())
-    return;
-
-  if (
-    !confirm(
-      "Submit this expiry monitoring record?"
-    )
-  ) return;
-
-  try {
-
-    const submissionRef =
-      push(
-        ref(
-          db,
-          "expiryMonitoring/submissions"
-        )
-      );
-
-    await set(
-      submissionRef,
-      buildSubmissionObject(
-        "SUBMITTED"
-      )
-    );
-
-    showFormMessage(
-      "Submission completed successfully.",
-      "success"
-    );
-
-    currentItems = [];
-
-    renderItems();
-
-  } catch(error) {
-
-    console.error(error);
-
-    showFormMessage(
-      "Submission failed: " +
-      error.message,
-      "error"
-    );
-
-  }
-
-};
-
-
-function validateSubmission() {
-
-  if (!currentStore) {
-
-    showFormMessage(
-      "Valid Store Code is required.",
-      "error"
-    );
-
-    return false;
-
-  }
-
-  if (!currentItems.length) {
-
-    showFormMessage(
-      "Please add at least one item.",
-      "error"
-    );
-
-    return false;
-
-  }
-
-  return true;
-
-}
-
-
-function buildSubmissionObject(status) {
-
-  return {
-
-    storeCode:
-      currentStore.code,
-
-    storeName:
-      currentStore.storeName || "",
-
-    areaManager:
-      currentStore.areaManager || "",
-
-    operationManager:
-      currentStore.operationManager || "",
-
-    category:
-      document.getElementById(
-        "category"
-      ).value,
-
-    cycleStart:
-      document.getElementById(
-        "cycleStart"
-      ).value,
-
-    cycleEnd:
-      document.getElementById(
-        "cycleEnd"
-      ).value,
-
-    status,
-
-    items:currentItems,
-
-    submittedAt:
-      new Date().toISOString(),
-
-    source:"GitHub Firebase Form"
-
-  };
-
-}
-
-
-/* =========================================================
-   ADMIN TABS
-========================================================= */
-
-window.openAdminTab = function(
-  tab,
-  button
-) {
-
-  document
-    .querySelectorAll(
-      ".admin-panel"
-    )
-    .forEach(panel => {
-
-      panel.classList.remove(
-        "active"
-      );
-
-    });
-
-  document
-    .querySelectorAll(
-      ".admin-tab"
-    )
-    .forEach(btn => {
-
-      btn.classList.remove(
-        "active"
-      );
-
-    });
-
-  const panel =
-    document.getElementById(
-      "admin" +
-      capitalize(tab)
-    );
-
-  if (panel)
-    panel.classList.add(
-      "active"
-    );
-
-  if (button)
-    button.classList.add(
-      "active"
-    );
-
-};
-
-
-function capitalize(value) {
-
-  return value.charAt(0).toUpperCase() +
-    value.slice(1);
-
-}
-
-
-/* =========================================================
-   STORE ADMIN
-========================================================= */
-
-window.saveStore = async function() {
-
-  const code =
-    document.getElementById(
-      "adminStoreCode"
-    ).value.trim();
-
-  if (!code) {
-
-    alert(
-      "Store Code is required."
-    );
-
-    return;
-
-  }
-
-  const data = {
-
-    storeName:
-      document.getElementById(
-        "adminStoreName"
-      ).value.trim(),
-
-    areaManager:
-      document.getElementById(
-        "adminAreaManager"
-      ).value.trim(),
-
-    operationManager:
-      document.getElementById(
-        "adminOperationManager"
-      ).value.trim(),
-
-    email:
-      document.getElementById(
-        "adminStoreEmail"
-      ).value.trim(),
-
-    classification:
-      document.getElementById(
-        "adminClassification"
-      ).value
-
-  };
-
-  try {
-
-    await set(
-      ref(
-        db,
-        "storeMaster/" +
-        safeFirebaseKey(code)
-      ),
-      data
-    );
-
-    alert(
-      "Store saved successfully."
-    );
-
-    clearStoreForm();
-
-  } catch(error) {
-
-    alert(
-      "Error: " +
-      error.message
-    );
-
-  }
-
-};
-
-
-window.editStore = function(code) {
-
-  const store =
+   const store=
     findStore(code);
 
-  if (!store) return;
-
-  document.getElementById(
-    "adminStoreCode"
-  ).value = code;
-
-  document.getElementById(
-    "adminStoreName"
-  ).value =
-    store.storeName || "";
-
-  document.getElementById(
-    "adminAreaManager"
-  ).value =
-    store.areaManager || "";
-
-  document.getElementById(
-    "adminOperationManager"
-  ).value =
-    store.operationManager || "";
-
-  document.getElementById(
-    "adminStoreEmail"
-  ).value =
-    store.email || "";
-
-  document.getElementById(
-    "adminClassification"
-  ).value =
-    store.classification || "";
-
-};
-
-
-window.deleteStore = async function(code) {
-
-  if (
-    !confirm(
-      "Delete Store " +
-      code +
-      "?"
-    )
-  ) return;
-
-  try {
-
-    await remove(
-      ref(
-        db,
-        "storeMaster/" +
-        safeFirebaseKey(code)
-      )
+   const option=
+    document.createElement(
+     "option"
     );
 
-  } catch(error) {
+   option.value=code;
 
-    alert(
-      error.message
-    );
+   option.textContent=
+    code+
+    " - "+
+    (store?.storeName||"");
 
-  }
-
-};
-
-
-window.clearStoreForm = function() {
-
-  [
-    "adminStoreCode",
-    "adminStoreName",
-    "adminAreaManager",
-    "adminOperationManager",
-    "adminStoreEmail"
-  ].forEach(id => {
-
-    document.getElementById(
-      id
-    ).value = "";
+   select.appendChild(option);
 
   });
 
+ if(current)
+  select.value=current;
+
+}
+
+
+window.renderStoreCategoryChecks=function(){
+
+ const container=
   document.getElementById(
-    "adminClassification"
-  ).value = "";
+   "categoryChecks"
+  );
 
-};
+ const storeCode=
+  document.getElementById(
+   "assignmentStore"
+  )?.value;
 
+ if(!container)return;
 
-/* =========================================================
-   STORE TABLE
-========================================================= */
+ if(!storeCode){
 
-function renderStoreTable() {
+  container.innerHTML=
+   "Select Store.";
 
-  const body =
-    document.getElementById(
-      "storesTable"
-    );
+  return;
 
-  if (!body) return;
+ }
 
-  body.innerHTML = "";
+ const assigned=
+  storeCategories[storeCode]||{};
 
-  Object.keys(storeMaster)
-    .sort()
-    .forEach(code => {
+ container.innerHTML="";
 
-      const store =
-        normalizeStore(
-          code,
-          storeMaster[code] || {}
-        );
+ Object.keys(categories)
+  .sort()
+  .forEach(key=>{
 
-      const tr =
-        document.createElement(
-          "tr"
-        );
+   const c=
+    categories[key];
 
-      tr.innerHTML = `
+   const name=
+    typeof c==="string"
+     ? c
+     : c.name||key;
 
-        <td>
-          <b>${escapeHtml(code)}</b>
-        </td>
+   const active=
+    typeof c==="string"
+     ? true
+     : c.active!==false;
 
-        <td>
-          ${escapeHtml(
-            store.storeName || ""
-          )}
-        </td>
+   if(!active)return;
 
-        <td>
-          ${escapeHtml(
-            store.areaManager || ""
-          )}
-        </td>
+   const row=
+    document.createElement("label");
 
-        <td>
-          ${escapeHtml(
-            store.operationManager || ""
-          )}
-        </td>
+   row.className=
+    "checkbox-row";
 
-        <td>
-          <span class="badge">
-            ${escapeHtml(
-              store.classification || ""
-            )}
-          </span>
-        </td>
+   row.innerHTML=`
 
-        <td>
+   <input
+    type="checkbox"
+    class="store-category-check"
+    value="${esc(key)}"
+    ${assigned[key]===true?"checked":""}>
 
-          <button
-            class="btn-blue"
-            onclick="editStore('${escapeJs(code)}')">
-            Edit
-          </button>
+   <span>
+   ${esc(name)}
+   </span>
 
-          <button
-            class="btn-red"
-            onclick="deleteStore('${escapeJs(code)}')">
-            Delete
-          </button>
+   `;
 
-        </td>
-
-      `;
-
-      body.appendChild(tr);
-
-    });
-
-}
-
-
-/* =========================================================
-   CATEGORY ADMIN
-========================================================= */
-
-window.saveCategory = async function() {
-
-  const name =
-    document.getElementById(
-      "adminCategoryName"
-    ).value.trim();
-
-  if (!name) {
-
-    alert(
-      "Enter category name."
-    );
-
-    return;
-
-  }
-
-  const key =
-    safeFirebaseKey(name);
-
-  try {
-
-    await set(
-      ref(
-        db,
-        "categories/" + key
-      ),
-      {
-        name:name,
-        active:true,
-        updatedAt:
-          new Date().toISOString()
-      }
-    );
-
-    document.getElementById(
-      "adminCategoryName"
-    ).value = "";
-
-  } catch(error) {
-
-    alert(
-      error.message
-    );
-
-  }
-
-};
-
-
-window.deleteCategory = async function(
-  key
-) {
-
-  if (
-    !confirm(
-      "Delete this category?"
-    )
-  ) return;
-
-  try {
-
-    await remove(
-      ref(
-        db,
-        "categories/" +
-        key
-      )
-    );
-
-  } catch(error) {
-
-    alert(
-      error.message
-    );
-
-  }
-
-};
-
-
-function renderCategoryTable() {
-
-  const body =
-    document.getElementById(
-      "categoriesTable"
-    );
-
-  if (!body) return;
-
-  body.innerHTML = "";
-
-  Object.keys(categories)
-    .sort()
-    .forEach(key => {
-
-      const value =
-        categories[key];
-
-      const name =
-        typeof value === "string"
-          ? value
-          : (
-              value.name ||
-              key
-            );
-
-      const tr =
-        document.createElement(
-          "tr"
-        );
-
-      tr.innerHTML = `
-
-        <td>
-          ${escapeHtml(name)}
-        </td>
-
-        <td>
-
-          <button
-            class="btn-red"
-            onclick="deleteCategory('${escapeJs(key)}')">
-            Delete
-          </button>
-
-        </td>
-
-      `;
-
-      body.appendChild(tr);
-
-    });
-
-}
-
-
-/* =========================================================
-   STORE CATEGORY ASSIGNMENT
-========================================================= */
-
-window.assignCategory = async function() {
-
-  const store =
-    document.getElementById(
-      "assignmentStore"
-    ).value;
-
-  const category =
-    document.getElementById(
-      "assignmentCategory"
-    ).value;
-
-  if (!store || !category) {
-
-    alert(
-      "Select Store and Category."
-    );
-
-    return;
-
-  }
-
-  try {
-
-    await set(
-      ref(
-        db,
-        "storeCategories/" +
-        safeFirebaseKey(store) +
-        "/" +
-        safeFirebaseKey(category)
-      ),
-      true
-    );
-
-  } catch(error) {
-
-    alert(
-      error.message
-    );
-
-  }
-
-};
-
-
-window.removeCategoryAssignment =
-async function() {
-
-  const store =
-    document.getElementById(
-      "assignmentStore"
-    ).value;
-
-  const category =
-    document.getElementById(
-      "assignmentCategory"
-    ).value;
-
-  if (!store || !category)
-    return;
-
-  try {
-
-    await remove(
-      ref(
-        db,
-        "storeCategories/" +
-        safeFirebaseKey(store) +
-        "/" +
-        safeFirebaseKey(category)
-      )
-    );
-
-  } catch(error) {
-
-    alert(
-      error.message
-    );
-
-  }
-
-};
-
-
-function renderAssignmentTable() {
-
-  const body =
-    document.getElementById(
-      "assignmentTable"
-    );
-
-  if (!body) return;
-
-  body.innerHTML = "";
-
-  Object.keys(storeCategories)
-    .sort()
-    .forEach(storeCode => {
-
-      const cats =
-        storeCategories[
-          storeCode
-        ] || {};
-
-      Object.keys(cats)
-        .forEach(category => {
-
-          const store =
-            findStore(
-              storeCode
-            );
-
-          const tr =
-            document.createElement(
-              "tr"
-            );
-
-          tr.innerHTML = `
-
-            <td>
-              ${escapeHtml(storeCode)}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                store?.storeName || ""
-              )}
-            </td>
-
-            <td>
-              <span class="badge">
-                ${escapeHtml(category)}
-              </span>
-            </td>
-
-          `;
-
-          body.appendChild(tr);
-
-        });
-
-    });
-
-}
-
-
-/* =========================================================
-   SELECTORS
-========================================================= */
-
-function populateStoreSelectors() {
-
-  const selectors = [
-
-    "assignmentStore"
-
-  ];
-
-  selectors.forEach(id => {
-
-    const select =
-      document.getElementById(id);
-
-    if (!select) return;
-
-    const current =
-      select.value;
-
-    select.innerHTML =
-      `<option value="">
-        Select Store
-      </option>`;
-
-    Object.keys(storeMaster)
-      .sort()
-      .forEach(code => {
-
-        const store =
-          findStore(code);
-
-        const option =
-          document.createElement(
-            "option"
-          );
-
-        option.value = code;
-
-        option.textContent =
-          code +
-          " · " +
-          (
-            store?.storeName ||
-            ""
-          );
-
-        select.appendChild(
-          option
-        );
-
-      });
-
-    if (current)
-      select.value = current;
+   container.appendChild(row);
 
   });
 
-}
+};
 
 
-function populateCategorySelectors() {
+window.saveStoreCategories=async function(){
 
-  const formSelect =
-    document.getElementById(
-      "category"
-    );
+ if(!adminUser){
 
-  const adminSelect =
-    document.getElementById(
-      "assignmentCategory"
-    );
+  alert("Admin login required.");
 
-  const current =
-    formSelect?.value || "";
+  return;
 
-  const currentAdmin =
-    adminSelect?.value || "";
+ }
 
+ const storeCode=
+  document.getElementById(
+   "assignmentStore"
+  ).value;
 
-  if (formSelect) {
+ if(!storeCode){
 
-    formSelect.innerHTML =
-      `<option value="">
-        Select Category
-      </option>`;
+  alert("Select Store.");
 
-  }
+  return;
 
-  if (adminSelect) {
+ }
 
-    adminSelect.innerHTML =
-      `<option value="">
-        Select Category
-      </option>`;
+ const selected={};
 
-  }
-
-
-  Object.keys(categories)
-    .sort()
-    .forEach(key => {
-
-      const value =
-        categories[key];
-
-      const name =
-        typeof value === "string"
-          ? value
-          : (
-              value.name ||
-              key
-            );
-
-      if (formSelect) {
-
-        const option =
-          document.createElement(
-            "option"
-          );
-
-        option.value = name;
-
-        option.textContent =
-          name;
-
-        formSelect.appendChild(
-          option
-        );
-
-      }
-
-
-      if (adminSelect) {
-
-        const option =
-          document.createElement(
-            "option"
-          );
-
-        option.value = name;
-
-        option.textContent =
-          name;
-
-        adminSelect.appendChild(
-          option
-        );
-
-      }
-
-    });
-
-
-  if (
-    formSelect &&
-    current
+ document
+  .querySelectorAll(
+   ".store-category-check:checked"
   )
-    formSelect.value =
-      current;
+  .forEach(cb=>{
 
-  if (
-    adminSelect &&
-    currentAdmin
-  )
-    adminSelect.value =
-      currentAdmin;
+   selected[
+    cb.value
+   ]=true;
 
-}
+  });
+
+ await set(
+  ref(
+   db,
+   "storeCategories/"+safeKey(storeCode)
+  ),
+  selected
+ );
+
+ alert(
+  "Store categories updated."
+ );
+
+};
 
 
 /* =========================================================
-   PRODUCT TABLE
+ ADMIN DATA MASTER
 ========================================================= */
 
-window.renderProducts = function() {
+window.saveDataItem=async function(){
 
-  const body =
+ if(!adminUser){
+
+  alert("Admin login required.");
+
+  return;
+
+ }
+
+ const sku=
+  document.getElementById(
+   "dataSku"
+  ).value.trim();
+
+ if(!sku){
+
+  alert("SKU is required.");
+
+  return;
+
+ }
+
+ const id=
+  safeKey(sku);
+
+ const item={
+
+  SKU:sku,
+
+  Barcodes:
+   document.getElementById(
+    "dataBarcode"
+   ).value.trim(),
+
+  UOM:
+   document.getElementById(
+    "dataUom"
+   ).value.trim(),
+
+  "EN Desc":
+   document.getElementById(
+    "dataDesc"
+   ).value.trim(),
+
+  Cost:
+   Number(
     document.getElementById(
-      "productsTable"
-    );
+     "dataCost"
+    ).value||0
+   ),
 
-  if (!body) return;
+  "Default Supplier":
+   document.getElementById(
+    "dataSupplier"
+   ).value.trim(),
 
-  const search =
-    String(
-      document.getElementById(
-        "productSearch"
-      )?.value || ""
-    )
-    .trim()
+  "Vendor Code":
+   document.getElementById(
+    "dataVendor"
+   ).value.trim(),
+
+  Category:
+   document.getElementById(
+    "dataCategory"
+   ).value,
+
+  "Non - Returnable & Returnable":
+   document.getElementById(
+    "dataReturnable"
+   ).value.trim(),
+
+  Qty:
+   Number(
+    document.getElementById(
+     "dataQty"
+    ).value||0
+   ),
+
+  updatedAt:
+   new Date().toISOString()
+
+ };
+
+ await set(
+  ref(
+   db,
+   "Data/items/"+id
+  ),
+  item
+ );
+
+ clearDataForm();
+
+ alert(
+  "Item saved to Firebase /Data."
+ );
+
+};
+
+
+window.editDataItem=function(id){
+
+ const item=
+  products.find(
+   x=>x._id===id
+  );
+
+ if(!item)return;
+
+ document.getElementById(
+  "dataSku"
+ ).value=
+  item.SKU||"";
+
+ document.getElementById(
+  "dataBarcode"
+ ).value=
+  item.Barcodes||
+  item.Barcode||
+  "";
+
+ document.getElementById(
+  "dataUom"
+ ).value=
+  item.UOM||"";
+
+ document.getElementById(
+  "dataDesc"
+ ).value=
+  item["EN Desc"]||
+  "";
+
+ document.getElementById(
+  "dataCost"
+ ).value=
+  item.Cost||
+  "";
+
+ document.getElementById(
+  "dataSupplier"
+ ).value=
+  item["Default Supplier"]||
+  "";
+
+ document.getElementById(
+  "dataVendor"
+ ).value=
+  item["Vendor Code"]||
+  "";
+
+ document.getElementById(
+  "dataCategory"
+ ).value=
+  item.Category||
+  "";
+
+ document.getElementById(
+  "dataReturnable"
+ ).value=
+  item[
+   "Non - Returnable & Returnable"
+  ]||
+  "";
+
+ document.getElementById(
+  "dataQty"
+ ).value=
+  item.Qty||
+  "";
+
+};
+
+
+window.deleteDataItem=async function(id){
+
+ if(!confirm(
+  "Delete this item?"
+ ))
+ return;
+
+ await remove(
+  ref(
+   db,
+   "Data/items/"+id
+  )
+ );
+
+};
+
+
+window.clearDataForm=function(){
+
+ [
+  "dataSku",
+  "dataBarcode",
+  "dataUom",
+  "dataDesc",
+  "dataCost",
+  "dataSupplier",
+  "dataVendor",
+  "dataReturnable",
+  "dataQty"
+ ].forEach(id=>{
+  document.getElementById(id).value="";
+ });
+
+ document.getElementById(
+  "dataCategory"
+ ).value="";
+
+};
+
+
+/* =========================================================
+ DATA TABLE
+========================================================= */
+
+window.renderDataTable=function(){
+
+ const body=
+  document.getElementById(
+   "dataTable"
+  );
+
+ if(!body)return;
+
+ const search=
+  document.getElementById(
+   "dataSearch"
+  )
+  .value
+  .trim()
+  .toLowerCase();
+
+ body.innerHTML="";
+
+ let count=0;
+
+ products.forEach(item=>{
+
+  if(count>=500)return;
+
+  const text=
+   JSON.stringify(item)
     .toLowerCase();
 
-  body.innerHTML = "";
+  if(
+   search &&
+   !text.includes(search)
+  )
+   return;
 
-  let count = 0;
+  const tr=
+   document.createElement("tr");
 
-  productData.forEach(
-    product => {
+  tr.innerHTML=`
 
-      if (count >= 500)
-        return;
+  <td>${esc(item.SKU||"")}</td>
 
-      const sku =
-        product["SKU"] ?? "";
+  <td>
+  ${esc(
+   item.Barcodes||
+   item.Barcode||
+   ""
+  )}
+  </td>
 
-      const barcode =
-        product["Barcodes"] ??
-        product["Barcode"] ??
-        "";
+  <td>
+  ${esc(
+   item["EN Desc"]||
+   ""
+  )}
+  </td>
 
-      const uom =
-        product["UOM"] ?? "";
+  <td>${esc(item.UOM||"")}</td>
 
-      const desc =
-        product["EN Desc"] ?? "";
+  <td>${esc(item.Cost||"")}</td>
 
-      const cost =
-        product["Cost"] ?? "";
+  <td>
+  ${esc(
+   item["Default Supplier"]||
+   ""
+  )}
+  </td>
 
-      const supplier =
-        product["Default Supplier"] ??
-        "";
+  <td>
+  ${esc(
+   item["Vendor Code"]||
+   ""
+  )}
+  </td>
 
-      const vendor =
-        product["Vendor Code"] ??
-        "";
+  <td>
+  <span class="badge">
+  ${esc(
+   item.Category||
+   ""
+  )}
+  </span>
+  </td>
 
-      const category =
-        product["Category"] ??
-        "";
+  <td>
 
-      const combined =
-        (
-          sku +
-          " " +
-          barcode +
-          " " +
-          desc +
-          " " +
-          category
-        )
-        .toLowerCase();
+  ${
+   item._id
+    ? `
+    <button
+     class="blue"
+     onclick="editDataItem('${js(item._id)}')">
+     Edit
+    </button>
 
-      if (
-        search &&
-        !combined.includes(search)
-      )
-        return;
-
-      const tr =
-        document.createElement(
-          "tr"
-        );
-
-      tr.innerHTML = `
-
-        <td>${escapeHtml(sku)}</td>
-
-        <td>${escapeHtml(barcode)}</td>
-
-        <td>${escapeHtml(uom)}</td>
-
-        <td>${escapeHtml(desc)}</td>
-
-        <td>${escapeHtml(cost)}</td>
-
-        <td>${escapeHtml(supplier)}</td>
-
-        <td>${escapeHtml(vendor)}</td>
-
-        <td>${escapeHtml(category)}</td>
-
-      `;
-
-      body.appendChild(tr);
-
-      count++;
-
-    }
-  );
-
-};
-
-
-/* =========================================================
-   COUNTERS
-========================================================= */
-
-function updateStoreCount() {
-
-  const el =
-    document.getElementById(
-      "storeCount"
-    );
-
-  if (el)
-    el.textContent =
-      Object.keys(
-        storeMaster
-      ).length;
-
-}
-
-
-function updateCategoryCount() {
-
-  const el =
-    document.getElementById(
-      "categoryCount"
-    );
-
-  if (el)
-    el.textContent =
-      Object.keys(
-        categories
-      ).length;
-
-}
-
-
-function updateProductCount() {
-
-  const el =
-    document.getElementById(
-      "productCount"
-    );
-
-  if (el)
-    el.textContent =
-      productData.length;
-
-}
-
-
-function updateSubmissionCount() {
-
-  const el =
-    document.getElementById(
-      "submissionCount"
-    );
-
-  if (el)
-    el.textContent =
-      Object.keys(
-        submissions
-      ).length;
-
-}
-
-
-/* =========================================================
-   FIREBASE TEST
-========================================================= */
-
-window.testFirebase = async function() {
-
-  try {
-
-    await get(
-      ref(
-        db,
-        "Data"
-      )
-    );
-
-    showFirebaseAdminMessage(
-      "Firebase connection is working correctly.",
-      "success"
-    );
-
-  } catch(error) {
-
-    showFirebaseAdminMessage(
-      error.message,
-      "error"
-    );
-
+    <button
+     class="red"
+     onclick="deleteDataItem('${js(item._id)}')">
+     Delete
+    </button>
+    `
+    : ""
   }
 
+  </td>
+
+  `;
+
+  body.appendChild(tr);
+
+  count++;
+
+ });
+
 };
 
 
-window.reloadFirebaseData =
-function() {
+/* =========================================================
+ CATEGORY SELECT FOR ITEM ADMIN
+========================================================= */
 
-  startFirebaseListeners();
+function populateCategorySelectors(){
 
-  showFirebaseAdminMessage(
-    "Firebase listeners refreshed.",
-    "success"
+ const select=
+  document.getElementById(
+   "dataCategory"
   );
 
+ if(!select)return;
+
+ const current=
+  select.value;
+
+ select.innerHTML=
+  '<option value="">Select Category</option>';
+
+ Object.keys(categories)
+  .sort()
+  .forEach(key=>{
+
+   const c=
+    categories[key];
+
+   const name=
+    typeof c==="string"
+     ? c
+     : c.name||key;
+
+   const active=
+    typeof c==="string"
+     ? true
+     : c.active!==false;
+
+   if(!active)return;
+
+   const option=
+    document.createElement(
+     "option"
+    );
+
+   option.value=name;
+   option.textContent=name;
+
+   select.appendChild(option);
+
+  });
+
+ if(current)
+  select.value=current;
+
+}
+
+
+/* =========================================================
+ COUNTERS
+========================================================= */
+
+function updateCounts(){
+
+ const a=
+  document.getElementById(
+   "storeCount"
+  );
+
+ const b=
+  document.getElementById(
+   "categoryCount"
+  );
+
+ const c=
+  document.getElementById(
+   "productCount"
+  );
+
+ const d=
+  document.getElementById(
+   "submissionCount"
+  );
+
+ if(a)
+  a.textContent=
+   Object.keys(stores).length;
+
+ if(b)
+  b.textContent=
+   Object.keys(categories).length;
+
+ if(c)
+  c.textContent=
+   products.length;
+
+ if(d)
+  d.textContent=
+   Object.keys(submissions).length;
+
+}
+
+
+/* =========================================================
+ NAVIGATION
+========================================================= */
+
+window.showPage=function(id){
+
+ document
+  .querySelectorAll(".page")
+  .forEach(page=>{
+   page.classList.remove("active");
+  });
+
+ const page=
+  document.getElementById(id);
+
+ if(page)
+  page.classList.add("active");
+
 };
 
 
-function showFirebaseAdminMessage(
-  text,
-  type
-) {
+function formMessage(text,type){
 
-  const el =
-    document.getElementById(
-      "firebaseAdminMessage"
-    );
+ const el=
+  document.getElementById(
+   "formMessage"
+  );
 
-  if (!el) return;
+ el.textContent=text;
 
-  el.textContent = text;
+ el.className=
+  "message show "+type;
 
-  el.className =
-    "message show " +
-    type;
+}
+
+
+function itemMessage(text,type){
+
+ const el=
+  document.getElementById(
+   "itemMessage"
+  );
+
+ el.textContent=text;
+
+ el.className=
+  "message show "+type;
+
+}
+
+
+function loginMessage(text,type){
+
+ const el=
+  document.getElementById(
+   "loginMessage"
+  );
+
+ el.textContent=text;
+
+ el.className=
+  "message "+
+  (type ? "show "+type : "");
 
 }
 
 
 /* =========================================================
-   PAGE NAVIGATION
+ HELPERS
 ========================================================= */
 
-window.showPage = function(
-  pageId
-) {
+function safeKey(value){
 
-  document
-    .querySelectorAll(
-      ".page"
-    )
-    .forEach(page => {
-
-      page.classList.remove(
-        "active"
-      );
-
-    });
-
-  const page =
-    document.getElementById(
-      pageId
-    );
-
-  if (page)
-    page.classList.add(
-      "active"
-    );
-
-};
-
-
-/* =========================================================
-   FORM MESSAGE
-========================================================= */
-
-function showFormMessage(
-  text,
-  type
-) {
-
-  const el =
-    document.getElementById(
-      "formMessage"
-    );
-
-  if (!el) return;
-
-  el.textContent = text;
-
-  el.className =
-    "message show " +
-    type;
-
-}
-
-
-/* =========================================================
-   HELPERS
-========================================================= */
-
-function escapeHtml(value) {
-
-  return String(
-    value ?? ""
-  )
-  .replaceAll("&","&amp;")
-  .replaceAll("<","&lt;")
-  .replaceAll(">","&gt;")
-  .replaceAll('"',"&quot;")
-  .replaceAll("'","&#039;");
-
-}
-
-
-function escapeJs(value) {
-
-  return String(
-    value ?? ""
-  )
-  .replaceAll("\\","\\\\")
-  .replaceAll("'","\\'");
-
-}
-
-
-function safeFirebaseKey(value) {
-
-  return String(
-    value
-  )
+ return String(value)
   .trim()
-  .replace(/[.#$/\[\]]/g,"_");
+  .replace(/[.#$/\[\]]/g,"_")
+  .replace(/\s+/g,"_");
 
 }
 
 
-function formatNumber(value) {
+function esc(value){
 
-  const n =
-    Number(value);
-
-  if (
-    Number.isNaN(n)
-  )
-    return "";
-
-  return n.toLocaleString(
-    undefined,
-    {
-      maximumFractionDigits:2
-    }
-  );
+ return String(
+  value??""
+ )
+ .replaceAll("&","&amp;")
+ .replaceAll("<","&lt;")
+ .replaceAll(">","&gt;")
+ .replaceAll('"',"&quot;")
+ .replaceAll("'","&#039;");
 
 }
 
 
-/* =========================================================
-   INITIAL UI
-========================================================= */
+function js(value){
 
-document.addEventListener(
-  "DOMContentLoaded",
-  () => {
+ return String(
+  value??""
+ )
+ .replaceAll("\\","\\\\")
+ .replaceAll("'","\\'");
 
-    populateCategorySelectors();
-
-    populateStoreSelectors();
-
-    renderItems();
-
-  }
-);
+}
