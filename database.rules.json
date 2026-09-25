@@ -1,8 +1,109 @@
 {
   "rules": {
-    "expiryMonitoring": {
+    ".read": false,
+    ".write": false,
+    "admins": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.uid === $uid && auth.token.email === 'sasco270@gmail.com') || (auth != null && root.child('admins').child(auth.uid).val() === true)",
+        ".validate": "newData.isBoolean()"
+      }
+    },
+    "storeMaster": {
       ".read": "auth != null",
-      ".write": "auth != null"
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$store": {
+        ".validate": "newData.hasChildren(['code','name']) && newData.child('code').isString() && newData.child('name').isString()"
+      }
+    },
+    "employeeMaster": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$employee": {
+        ".validate": "newData.hasChildren(['employeeId','employeeName','status'])"
+      }
+    },
+    "categories": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      "$category": {
+        ".validate": "newData.hasChildren(['name','active'])"
+      }
+    },
+    "storeCategories": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+    },
+    "categoryCycle": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+    },
+    "minQty": {
+      ".read": "auth != null",
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+    },
+    "settings": {
+      "barcodePasteAllowed": {
+        ".read": "auth != null",
+        ".write": "auth != null && root.child('admins').child(auth.uid).val() === true",
+        ".validate": "newData.isBoolean()"
+      }
+    },
+    "Data": {
+      ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+    },
+    "dataLookup": {
+      "byBarcode": {
+        "$lookup": {
+          ".read": "auth != null"
+        }
+      },
+      "bySku": {
+        "$lookup": {
+          ".read": "auth != null"
+        }
+      },
+      ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+    },
+    "storeSessions": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && !data.exists()",
+        ".validate": "newData.hasChildren(['storeCode','employeeId','loginAt']) && root.child('storeMaster').child(newData.child('storeCode').val()).exists() && root.child('employeeMaster').child(newData.child('employeeId').val()).exists() && !root.child('employeeMaster').child(newData.child('employeeId').val()).child('status').val().matches(/^(inactive|terminated|resigned|blocked|suspended|left)$/i)"
+      }
+    },
+    "expiryDrafts": {
+      "$storeCode": {
+        "$cycle": {
+          "$category": {
+            ".read": "auth != null && (root.child('admins').child(auth.uid).val() === true || root.child('storeSessions').child(auth.uid).child('storeCode').val() === $storeCode)",
+            ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (root.child('storeSessions').child(auth.uid).child('storeCode').val() === $storeCode && root.child('storeCategories').child($storeCode).child($category).val() === true && root.child('categoryCycle').child($cycle).exists() && !root.child('storeSubmissions').child($storeCode).child($category).child($cycle).exists()))",
+            ".validate": "newData.hasChildren(['storeCode','category','items','status']) && newData.child('storeCode').val() === $storeCode",
+            "items": {
+              "$item": {
+                ".validate": "newData.hasChildren(['sku','barcode','categoryKey','Qty','ExpiryDate']) && newData.child('categoryKey').val() === $category && newData.child('Qty').isNumber() && newData.child('Qty').val() > 0 && newData.child('ExpiryDate').isString()"
+              }
+            }
+          }
+        }
+      }
+    },
+    "storeSubmissions": {
+      "$storeCode": {
+        "$category": {
+          "$cycle": {
+            ".read": "auth != null && (root.child('admins').child(auth.uid).val() === true || root.child('storeSessions').child(auth.uid).child('storeCode').val() === $storeCode)",
+            ".write": "auth != null && !data.exists() && root.child('storeSessions').child(auth.uid).child('storeCode').val() === $storeCode && root.child('storeCategories').child($storeCode).child($category).val() === true && root.child('categoryCycle').child($cycle).exists()",
+            ".validate": "newData.hasChildren(['storeCode','category','items','status','itemCount','submittedAt']) && newData.child('storeCode').val() === $storeCode && newData.child('status').val() === 'SUBMITTED' && newData.child('itemCount').isNumber() && newData.child('itemCount').val() > 0",
+            "items": {
+              "$item": {
+                ".validate": "newData.hasChildren(['sku','barcode','categoryKey','Qty','ExpiryDate']) && newData.child('categoryKey').val() === $category && newData.child('Qty').isNumber() && newData.child('Qty').val() > 0 && newData.child('ExpiryDate').isString()"
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
