@@ -1,1361 +1,1053 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
 import {
-  getAuth,
-  signInAnonymously
-} from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+  initializeApp
+} from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
 
 import {
   getDatabase,
   ref,
-  get,
+  onValue,
   set,
   push,
-  serverTimestamp
+  remove,
+  get,
+  update
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
+
+import {
+  getAuth,
+  signInAnonymously,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
 
 
 /* =========================================================
-   FIREBASE CONFIGURATION
+   FIREBASE CONFIG
 ========================================================= */
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDXTkoz1xSpsWYuMV-uFvm57TF0ajj0p9M9",
+  apiKey: "AIzaSyDXTkoz1xSpsWYuMUv-Wvm57TF0ajj0p9M9",
   authDomain: "expiry-monitoring-v2.firebaseapp.com",
   projectId: "expiry-monitoring-v2",
   storageBucket: "expiry-monitoring-v2.firebasestorage.app",
   messagingSenderId: "722745088244",
   appId: "1:722745088244:web:17a4f2854a98ee6f6366a1",
-  measurementId: "G-YPXSVPRK36",
-  databaseURL: "https://expiry-monitoring-v2-default-rtdb.firebaseio.com"
+  measurementId: "G-YPXSVPRK36"
 };
 
 
 /* =========================================================
-   INITIALIZE FIREBASE
+   INITIALIZE
 ========================================================= */
 
 const app = initializeApp(firebaseConfig);
 
-const auth = getAuth(app);
-
 const db = getDatabase(app);
 
-let currentUser = null;
-
-let dataMaster = null;
-
-let dataLoading = false;
+const auth = getAuth(app);
 
 
 /* =========================================================
-   BASIC HELPERS
+   GLOBAL DATA
 ========================================================= */
 
-function $(id) {
-  return document.getElementById(id);
-}
+let firebaseReady = false;
 
+let storeMaster = {};
 
-function clean(value) {
-  return String(value ?? "").trim();
-}
+let productData = [];
 
+let dataHeaders = [];
 
-function normalize(value) {
-  return clean(value)
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
-}
+let categories = {};
 
+let storeCategories = {};
 
-function keyNormalize(value) {
-  return normalize(value)
-    .replace(/[^a-z0-9]/g, "");
-}
+let submissions = {};
+
+let currentItems = [];
+
+let currentProduct = null;
+
+let currentStore = null;
 
 
 /* =========================================================
-   STATUS MESSAGE
+   AUTHENTICATION
 ========================================================= */
 
-function showStatus(message, type = "ok") {
-
-  const element = $("status");
-
-  if (!element) return;
-
-  element.style.display = "block";
-
-  element.className =
-    type === "ok"
-      ? "ok"
-      : type === "info"
-        ? "info"
-        : "err";
-
-  element.textContent = message;
-}
-
-
-/* =========================================================
-   GET VALUE FROM FIREBASE OBJECT
-========================================================= */
-
-function getField(object, possibleNames) {
-
-  if (!object || typeof object !== "object") {
-    return "";
-  }
-
-  const wanted = new Set(
-    possibleNames.map(keyNormalize)
-  );
-
-  for (const [key, value] of Object.entries(object)) {
-
-    if (
-      wanted.has(keyNormalize(key)) &&
-      value !== null &&
-      value !== undefined &&
-      typeof value !== "object"
-    ) {
-
-      return clean(value);
-    }
-  }
-
-  return "";
-}
-
-
-/* =========================================================
-   STORE MASTER
-========================================================= */
-
-async function loadStore(storeCode) {
-
-  storeCode = clean(storeCode);
-
-  if (!storeCode) return;
-
-  const status = $("storeLookupStatus");
-
-  if (status) {
-    status.textContent = "Loading store...";
-  }
-
-  try {
-
-    const storeReference =
-      ref(db, `storeMaster/${storeCode}`);
-
-    const snapshot =
-      await get(storeReference);
-
-    if (!snapshot.exists()) {
-
-      $("storeName").value = "";
-      $("areaManager").value = "";
-      $("operationManager").value = "";
-
-      if (status) {
-        status.textContent =
-          `Store ${storeCode} not found`;
-      }
-
-      return;
-    }
-
-    const store = snapshot.val();
-
-    $("storeName").value =
-      getField(store, [
-        "storeName",
-        "Store Name",
-        "name",
-        "store"
-      ]);
-
-    $("areaManager").value =
-      getField(store, [
-        "areaManager",
-        "Area Manager",
-        "AM",
-        "area"
-      ]);
-
-    $("operationManager").value =
-      getField(store, [
-        "operationManager",
-        "Operation Manager",
-        "OM",
-        "operationsManager",
-        "operationManagerName"
-      ]);
-
-    if (status) {
-      status.textContent =
-        `✓ Store ${storeCode} loaded from Firebase`;
-    }
-
-  } catch (error) {
+signInAnonymously(auth)
+  .then(() => {
+    console.log("Anonymous authentication started.");
+  })
+  .catch(error => {
 
     console.error(error);
 
-    if (status) {
-      status.textContent =
-        "Firebase store lookup failed";
-    }
-
-    showStatus(
-      "Unable to load store information.",
-      "err"
+    setFirebaseStatus(
+      "Authentication Error",
+      "error"
     );
-  }
-}
-
-
-/* =========================================================
-   FIREBASE DATA MASTER
-========================================================= */
-
-async function loadDataMaster() {
-
-  if (dataMaster !== null) {
-    return dataMaster;
-  }
-
-  if (dataLoading) {
-
-    while (dataLoading) {
-      await new Promise(
-        resolve => setTimeout(resolve, 100)
-      );
-    }
-
-    return dataMaster;
-  }
-
-  dataLoading = true;
-
-  try {
-
-    const dataReference =
-      ref(db, "Data");
-
-    const snapshot =
-      await get(dataReference);
-
-    if (!snapshot.exists()) {
-
-      throw new Error(
-        "Firebase Data node was not found."
-      );
-    }
-
-    dataMaster = snapshot.val();
-
-    return dataMaster;
-
-  } finally {
-
-    dataLoading = false;
-  }
-}
-
-
-/* =========================================================
-   CONVERT HEADER + ARRAY DATA
-========================================================= */
-
-function arrayToObject(headers, row) {
-
-  if (
-    !Array.isArray(headers) ||
-    !Array.isArray(row)
-  ) {
-    return null;
-  }
-
-  const object = {};
-
-  headers.forEach((header, index) => {
-
-    if (
-      header !== null &&
-      header !== undefined &&
-      header !== ""
-    ) {
-
-      object[header] = row[index];
-    }
 
   });
 
-  return object;
-}
 
+onAuthStateChanged(auth, user => {
 
-/* =========================================================
-   FIND ALL RECORDS INSIDE FIREBASE DATA
-========================================================= */
-
-function collectRecords(
-  node,
-  headers = null,
-  records = []
-) {
-
-  if (Array.isArray(node)) {
-
-    for (const item of node) {
-
-      if (Array.isArray(item)) {
-
-        const record =
-          arrayToObject(headers, item);
-
-        if (record) {
-          records.push(record);
-        }
-
-      } else if (
-        item &&
-        typeof item === "object"
-      ) {
-
-        records.push(item);
-      }
-    }
-
-    return records;
-  }
-
-
-  if (
-    !node ||
-    typeof node !== "object"
-  ) {
-
-    return records;
-  }
-
-
-  const localHeaders =
-    Array.isArray(node.headers)
-      ? node.headers
-      : headers;
-
-
-  /* Current object itself may be an item */
-
-  const keys =
-    Object.keys(node)
-      .map(keyNormalize);
-
-
-  const looksLikeItem =
-    keys.includes("sku") ||
-    keys.includes("barcodes") ||
-    keys.includes("barcode") ||
-    keys.includes("endesc") ||
-    keys.includes("cost");
-
-
-  if (looksLikeItem) {
-    records.push(node);
-  }
-
-
-  for (
-    const [key, value]
-    of Object.entries(node)
-  ) {
-
-    if (key === "headers") {
-      continue;
-    }
-
-
-    if (Array.isArray(value)) {
-
-      for (const item of value) {
-
-        if (Array.isArray(item)) {
-
-          const record =
-            arrayToObject(
-              localHeaders,
-              item
-            );
-
-          if (record) {
-            records.push(record);
-          }
-
-        } else if (
-          item &&
-          typeof item === "object"
-        ) {
-
-          records.push(item);
-        }
-      }
-
-    } else if (
-      value &&
-      typeof value === "object"
-    ) {
-
-      collectRecords(
-        value,
-        localHeaders,
-        records
-      );
-    }
-  }
-
-
-  return records;
-}
-
-
-/* =========================================================
-   CHECK BARCODE
-========================================================= */
-
-function barcodeMatches(
-  record,
-  barcode
-) {
-
-  barcode = normalize(barcode);
-
-  if (!barcode) {
-    return false;
-  }
-
-
-  const value =
-    getField(record, [
-      "Barcodes",
-      "Barcode",
-      "barCode"
-    ]);
-
-
-  if (!value) {
-    return false;
-  }
-
-
-  const values =
-    String(value)
-      .split(/[,;|]/)
-      .map(normalize);
-
-
-  return values.includes(barcode);
-}
-
-
-/* =========================================================
-   CHECK SKU
-========================================================= */
-
-function skuMatches(
-  record,
-  sku
-) {
-
-  sku = normalize(sku);
-
-  if (!sku) {
-    return false;
-  }
-
-
-  const value =
-    getField(record, [
-      "SKU",
-      "sku"
-    ]);
-
-
-  return (
-    value &&
-    normalize(value) === sku
-  );
-}
-
-
-/* =========================================================
-   SEARCH ITEM
-========================================================= */
-
-function findItem(
-  data,
-  barcode,
-  sku
-) {
-
-  barcode = clean(barcode);
-
-  sku = clean(sku);
-
-
-  /* -----------------------------------------
-     DIRECT KEY SEARCH
-  ----------------------------------------- */
-
-  if (
-    data &&
-    typeof data === "object"
-  ) {
-
-    if (
-      barcode &&
-      data[barcode] &&
-      typeof data[barcode] === "object"
-    ) {
-
-      return data[barcode];
-    }
-
-
-    if (
-      sku &&
-      data[sku] &&
-      typeof data[sku] === "object"
-    ) {
-
-      return data[sku];
-    }
-  }
-
-
-  /* -----------------------------------------
-     SEARCH ALL RECORDS
-  ----------------------------------------- */
-
-  const records =
-    collectRecords(data);
-
-
-  /* Barcode first */
-
-  if (barcode) {
-
-    for (const record of records) {
-
-      if (
-        barcodeMatches(
-          record,
-          barcode
-        )
-      ) {
-
-        return record;
-      }
-    }
-  }
-
-
-  /* SKU second */
-
-  if (sku) {
-
-    for (const record of records) {
-
-      if (
-        skuMatches(
-          record,
-          sku
-        )
-      ) {
-
-        return record;
-      }
-    }
-  }
-
-
-  return null;
-}
-
-
-/* =========================================================
-   NORMALIZE ITEM
-========================================================= */
-
-function normalizeItem(record) {
-
-  return {
-
-    sku:
-      getField(record, [
-        "SKU",
-        "sku"
-      ]),
-
-    barcode:
-      getField(record, [
-        "Barcodes",
-        "Barcode",
-        "barcode"
-      ]),
-
-    uom:
-      getField(record, [
-        "UOM",
-        "uom"
-      ]),
-
-    itemName:
-      getField(record, [
-        "EN Desc",
-        "ENDesc",
-        "Description",
-        "Item Name",
-        "ItemName"
-      ]),
-
-    cost:
-      getField(record, [
-        "Cost",
-        "cost"
-      ]),
-
-    supplier:
-      getField(record, [
-        "Default Supplier",
-        "DefaultSupplier",
-        "Supplier"
-      ]),
-
-    vendorCode:
-      getField(record, [
-        "Vendor Code",
-        "VendorCode"
-      ]),
-
-    category:
-      getField(record, [
-        "Category",
-        "category"
-      ]),
-
-    returnable:
-      getField(record, [
-        "Non - Returnable & Returnable",
-        "Non-Returnable & Returnable",
-        "Returnable"
-      ]),
-
-    masterQty:
-      getField(record, [
-        "Qty",
-        "Quantity"
-      ]),
-
-    totalCost:
-      getField(record, [
-        "Total Cost",
-        "TotalCost"
-      ]),
-
-    expiryDate:
-      getField(record, [
-        "Expiry Date",
-        "ExpiryDate"
-      ]),
-
-    daysLeft:
-      getField(record, [
-        "Days Left",
-        "DaysLeft"
-      ])
-  };
-}
-
-
-/* =========================================================
-   ADD ITEM ROW
-========================================================= */
-
-function addRow(data = {}) {
-
-  const table =
-    $("rows");
-
-  if (!table) return;
-
-
-  const row =
-    document.createElement("tr");
-
-
-  row.innerHTML = `
-
-    <td>
-      <input
-        class="sku lookup-input"
-        placeholder="SKU"
-        value="${escapeHtml(data.sku || "")}">
-    </td>
-
-    <td>
-      <input
-        class="barcode lookup-input"
-        placeholder="Barcode"
-        value="${escapeHtml(data.barcode || "")}">
-    </td>
-
-    <td>
-      <input
-        class="uom"
-        readonly
-        value="${escapeHtml(data.uom || "")}">
-    </td>
-
-    <td>
-      <input
-        class="itemName"
-        readonly
-        value="${escapeHtml(data.itemName || "")}">
-    </td>
-
-    <td>
-      <input
-        class="cost"
-        readonly
-        value="${escapeHtml(data.cost || "")}">
-    </td>
-
-    <td>
-      <input
-        class="supplier"
-        readonly
-        value="${escapeHtml(data.supplier || "")}">
-    </td>
-
-    <td>
-      <input
-        class="vendorCode"
-        readonly
-        value="${escapeHtml(data.vendorCode || "")}">
-    </td>
-
-    <td>
-      <input
-        class="itemCategory"
-        readonly
-        value="${escapeHtml(data.category || "")}">
-    </td>
-
-    <td>
-      <input
-        class="returnable"
-        readonly
-        value="${escapeHtml(data.returnable || "")}">
-    </td>
-
-    <td>
-      <input
-        class="qty"
-        type="number"
-        min="0"
-        step="1"
-        value="${escapeHtml(data.quantity || "")}">
-    </td>
-
-    <td>
-      <input
-        class="expiryDate"
-        type="date"
-        value="${escapeHtml(data.expiryDate || "")}">
-    </td>
-
-    <td>
-      <input
-        class="daysLeft"
-        readonly
-        value="${escapeHtml(data.daysLeft || "")}">
-    </td>
-
-    <td>
-      <button
-        type="button"
-        class="remove">
-        Remove
-      </button>
-    </td>
-  `;
-
-
-  table.appendChild(row);
-
-
-  /* Remove button */
-
-  row
-    .querySelector(".remove")
-    .addEventListener(
-      "click",
-      () => row.remove()
+  if (!user) {
+    setFirebaseStatus(
+      "Not Connected",
+      "error"
     );
-
-
-  /* Barcode lookup */
-
-  const barcodeInput =
-    row.querySelector(".barcode");
-
-
-  barcodeInput.addEventListener(
-    "change",
-    () => lookupItem(row)
-  );
-
-
-  barcodeInput.addEventListener(
-    "blur",
-    () => lookupItem(row)
-  );
-
-
-  /* SKU lookup */
-
-  const skuInput =
-    row.querySelector(".sku");
-
-
-  skuInput.addEventListener(
-    "change",
-    () => lookupItem(row)
-  );
-
-
-  skuInput.addEventListener(
-    "blur",
-    () => lookupItem(row)
-  );
-
-
-  /* Existing data */
-
-  if (
-    data.barcode ||
-    data.sku
-  ) {
-
-    lookupItem(row);
-  }
-}
-
-
-/* =========================================================
-   ESCAPE HTML
-========================================================= */
-
-function escapeHtml(value) {
-
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "&quot;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-
-/* =========================================================
-   LOOKUP ITEM FOR ROW
-========================================================= */
-
-async function lookupItem(row) {
-
-  const barcode =
-    clean(
-      row.querySelector(
-        ".barcode"
-      ).value
-    );
-
-
-  const sku =
-    clean(
-      row.querySelector(
-        ".sku"
-      ).value
-    );
-
-
-  if (
-    !barcode &&
-    !sku
-  ) {
 
     return;
   }
 
+  firebaseReady = true;
 
-  try {
+  setFirebaseStatus(
+    "Firebase Connected",
+    "connected"
+  );
 
-    showStatus(
-      "Searching Firebase item master...",
-      "info"
-    );
+  startFirebaseListeners();
 
-
-    const data =
-      await loadDataMaster();
-
-
-    const item =
-      findItem(
-        data,
-        barcode,
-        sku
-      );
+});
 
 
-    if (!item) {
+/* =========================================================
+   FIREBASE STATUS
+========================================================= */
 
-      showStatus(
-        `Item not found: ${barcode || sku}`,
-        "err"
-      );
+function setFirebaseStatus(text, type) {
 
-      return;
-    }
+  const el = document.getElementById(
+    "firebaseStatus"
+  );
 
+  if (!el) return;
 
-    const x =
-      normalizeItem(item);
+  el.textContent = text;
 
+  el.className = "status " + (type || "");
 
-    row.querySelector(".sku").value =
-      x.sku || "";
-
-
-    row.querySelector(".barcode").value =
-      x.barcode || barcode;
-
-
-    row.querySelector(".uom").value =
-      x.uom || "";
-
-
-    row.querySelector(".itemName").value =
-      x.itemName || "";
-
-
-    row.querySelector(".cost").value =
-      x.cost || "";
-
-
-    row.querySelector(".supplier").value =
-      x.supplier || "";
-
-
-    row.querySelector(".vendorCode").value =
-      x.vendorCode || "";
-
-
-    row.querySelector(".itemCategory").value =
-      x.category || "";
-
-
-    row.querySelector(".returnable").value =
-      x.returnable || "";
-
-
-    row.querySelector(".daysLeft").value =
-      x.daysLeft || "";
-
-
-    showStatus(
-      `✓ Item loaded: ${x.itemName || x.sku || x.barcode}`,
-      "ok"
-    );
-
-
-  } catch (error) {
-
-    console.error(error);
-
-    showStatus(
-      "Firebase item lookup failed: " +
-      error.message,
-      "err"
-    );
-  }
 }
 
 
 /* =========================================================
-   COLLECT FORM ITEMS
+   REALTIME FIREBASE LISTENERS
 ========================================================= */
 
-function getItems() {
+function startFirebaseListeners() {
 
-  const rows =
-    document.querySelectorAll(
-      "#rows tr"
-    );
+  /*
+   STORE MASTER
+  */
 
+  onValue(
+    ref(db, "storeMaster"),
+    snapshot => {
 
-  const items = [];
+      storeMaster =
+        snapshot.val() || {};
 
+      renderStoreTable();
 
-  rows.forEach(row => {
+      populateStoreSelectors();
 
-    const item = {
+      updateStoreCount();
 
-      sku:
-        clean(
-          row.querySelector(
-            ".sku"
-          ).value
-        ),
+      console.log(
+        "storeMaster updated",
+        storeMaster
+      );
 
-      barcode:
-        clean(
-          row.querySelector(
-            ".barcode"
-          ).value
-        ),
+    },
+    error => {
 
-      uom:
-        clean(
-          row.querySelector(
-            ".uom"
-          ).value
-        ),
+      console.error(
+        "storeMaster:",
+        error
+      );
 
-      itemName:
-        clean(
-          row.querySelector(
-            ".itemName"
-          ).value
-        ),
-
-      cost:
-        clean(
-          row.querySelector(
-            ".cost"
-          ).value
-        ),
-
-      defaultSupplier:
-        clean(
-          row.querySelector(
-            ".supplier"
-          ).value
-        ),
-
-      vendorCode:
-        clean(
-          row.querySelector(
-            ".vendorCode"
-          ).value
-        ),
-
-      category:
-        clean(
-          row.querySelector(
-            ".itemCategory"
-          ).value
-        ),
-
-      returnable:
-        clean(
-          row.querySelector(
-            ".returnable"
-          ).value
-        ),
-
-      quantity:
-        Number(
-          row.querySelector(
-            ".qty"
-          ).value || 0
-        ),
-
-      expiryDate:
-        clean(
-          row.querySelector(
-            ".expiryDate"
-          ).value
-        ),
-
-      daysLeft:
-        clean(
-          row.querySelector(
-            ".daysLeft"
-          ).value
-        )
-    };
+    }
+  );
 
 
-    if (
-      item.sku ||
-      item.barcode ||
-      item.itemName ||
-      item.quantity ||
-      item.expiryDate
+  /*
+   DATA
+  */
+
+  onValue(
+    ref(db, "Data"),
+    snapshot => {
+
+      const value =
+        snapshot.val() || {};
+
+      processProductData(value);
+
+      renderProducts();
+
+      updateProductCount();
+
+      console.log(
+        "Data updated",
+        productData.length
+      );
+
+    },
+    error => {
+
+      console.error(
+        "Data:",
+        error
+      );
+
+    }
+  );
+
+
+  /*
+   CATEGORIES
+  */
+
+  onValue(
+    ref(db, "categories"),
+    snapshot => {
+
+      categories =
+        snapshot.val() || {};
+
+      renderCategoryTable();
+
+      populateCategorySelectors();
+
+      updateCategoryCount();
+
+    }
+  );
+
+
+  /*
+   STORE CATEGORIES
+  */
+
+  onValue(
+    ref(db, "storeCategories"),
+    snapshot => {
+
+      storeCategories =
+        snapshot.val() || {};
+
+      renderAssignmentTable();
+
+    }
+  );
+
+
+  /*
+   SUBMISSIONS
+  */
+
+  onValue(
+    ref(db, "expiryMonitoring/submissions"),
+    snapshot => {
+
+      submissions =
+        snapshot.val() || {};
+
+      updateSubmissionCount();
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   PROCESS DATA
+========================================================= */
+
+function processProductData(value) {
+
+  productData = [];
+
+  dataHeaders = [];
+
+  /*
+   Your Firebase Data currently looks like:
+
+   Data
+      headers
+        0 SKU
+        1 Barcodes
+        2 UOM
+        3 EN Desc
+        ...
+   */
+
+  if (
+    value &&
+    Array.isArray(value.headers)
+  ) {
+
+    dataHeaders = value.headers;
+
+  }
+
+
+  /*
+   If Data is an array
+  */
+
+  if (Array.isArray(value)) {
+
+    productData =
+      value.map(row => {
+
+        if (Array.isArray(row)) {
+
+          return arrayRowToProduct(row);
+
+        }
+
+        return row;
+
+      });
+
+    return;
+
+  }
+
+
+  /*
+   If Data contains rows / records
+  */
+
+  const keys =
+    Object.keys(value || {});
+
+
+  keys.forEach(key => {
+
+    if (key === "headers") return;
+
+    const row = value[key];
+
+    if (Array.isArray(row)) {
+
+      productData.push(
+        arrayRowToProduct(row)
+      );
+
+    } else if (
+      row &&
+      typeof row === "object"
     ) {
 
-      items.push(item);
+      productData.push(row);
+
     }
 
   });
 
-
-  return items;
 }
 
 
-/* =========================================================
-   GET FORM DATA
-========================================================= */
+function arrayRowToProduct(row) {
 
-function getFormData() {
+  const obj = {};
 
-  return {
+  dataHeaders.forEach(
+    (header, index) => {
 
-    storeCode:
-      clean(
-        $("storeCode").value
-      ),
-
-    storeName:
-      clean(
-        $("storeName").value
-      ),
-
-    areaManager:
-      clean(
-        $("areaManager").value
-      ),
-
-    operationManager:
-      clean(
-        $("operationManager").value
-      ),
-
-    category:
-      clean(
-        $("category").value
-      ),
-
-    cycleStart:
-      clean(
-        $("cycleStart").value
-      ),
-
-    cycleEnd:
-      clean(
-        $("cycleEnd").value
-      ),
-
-    items:
-      getItems()
-  };
-}
-
-
-/* =========================================================
-   VALIDATE
-========================================================= */
-
-function validate(data) {
-
-  if (!data.storeCode) {
-    throw new Error(
-      "Please enter Store Code."
-    );
-  }
-
-
-  if (!data.category) {
-    throw new Error(
-      "Please enter Category."
-    );
-  }
-
-
-  if (!data.cycleStart) {
-    throw new Error(
-      "Please select Cycle Start."
-    );
-  }
-
-
-  if (!data.cycleEnd) {
-    throw new Error(
-      "Please select Cycle End."
-    );
-  }
-
-
-  if (
-    data.cycleEnd <
-    data.cycleStart
-  ) {
-
-    throw new Error(
-      "Cycle End cannot be before Cycle Start."
-    );
-  }
-
-
-  if (!data.items.length) {
-
-    throw new Error(
-      "Please add at least one item."
-    );
-  }
-
-
-  data.items.forEach(
-    (item, index) => {
-
-      if (
-        !item.barcode &&
-        !item.sku
-      ) {
-
-        throw new Error(
-          `Item ${index + 1}: Barcode or SKU is required.`
-        );
-      }
-
-
-      if (!item.expiryDate) {
-
-        throw new Error(
-          `Item ${index + 1}: Expiry Date is required.`
-        );
-      }
+      obj[
+        String(header)
+      ] = row[index];
 
     }
   );
+
+  return obj;
+
 }
 
 
 /* =========================================================
-   DRAFT ID
+   STORE LOOKUP
 ========================================================= */
 
-function getDraftId(data) {
+window.lookupStore = function() {
 
-  return (
+  const code =
+    String(
+      document.getElementById(
+        "storeCode"
+      ).value || ""
+    ).trim();
 
-    `${data.storeCode}__` +
-    `${data.category}__` +
-    `${data.cycleStart}__` +
-    `${data.cycleEnd}`
+  if (!code) {
 
-  ).replace(
-    /[.#$\[\]/]/g,
-    "_"
+    clearStoreInformation();
+
+    return;
+
+  }
+
+  const store =
+    findStore(code);
+
+  if (!store) {
+
+    clearStoreInformation();
+
+    showFormMessage(
+      "Store Code not found in Firebase storeMaster.",
+      "error"
+    );
+
+    return;
+
+  }
+
+  currentStore = store;
+
+  document.getElementById(
+    "storeName"
+  ).value =
+    store.storeName ||
+    store.name ||
+    store.palmStore ||
+    "";
+
+  document.getElementById(
+    "areaManager"
+  ).value =
+    store.areaManager || "";
+
+  document.getElementById(
+    "operationManager"
+  ).value =
+    store.operationManager || "";
+
+  showFormMessage(
+    "Store verified: " +
+    (
+      store.storeName ||
+      store.name ||
+      code
+    ),
+    "success"
   );
+
+};
+
+
+function findStore(code) {
+
+  const target =
+    String(code)
+      .trim()
+      .toUpperCase();
+
+  /*
+   Direct Firebase key
+  */
+
+  if (
+    storeMaster[target]
+  ) {
+
+    return normalizeStore(
+      target,
+      storeMaster[target]
+    );
+
+  }
+
+  /*
+   Search values
+  */
+
+  for (
+    const key of Object.keys(storeMaster)
+  ) {
+
+    const value =
+      storeMaster[key];
+
+    if (!value) continue;
+
+    const possible =
+      String(
+        value.storeCode ||
+        value.code ||
+        key
+      )
+      .trim()
+      .toUpperCase();
+
+    if (
+      possible === target
+    ) {
+
+      return normalizeStore(
+        key,
+        value
+      );
+
+    }
+
+  }
+
+  return null;
+
 }
+
+
+function normalizeStore(code, value) {
+
+  return {
+
+    code,
+
+    ...value,
+
+    storeName:
+      value.storeName ||
+      value.name ||
+      value.palmStore ||
+      code
+
+  };
+
+}
+
+
+function clearStoreInformation() {
+
+  currentStore = null;
+
+  [
+    "storeName",
+    "areaManager",
+    "operationManager"
+  ].forEach(id => {
+
+    const el =
+      document.getElementById(id);
+
+    if (el) el.value = "";
+
+  });
+
+}
+
+
+/* =========================================================
+   BARCODE / SKU LOOKUP
+========================================================= */
+
+window.lookupItem = function() {
+
+  const value =
+    String(
+      document.getElementById(
+        "barcodeInput"
+      ).value || ""
+    ).trim();
+
+  if (!value) {
+
+    currentProduct = null;
+
+    clearItemMasterFields();
+
+    return;
+
+  }
+
+  const product =
+    findProduct(value);
+
+  if (!product) {
+
+    currentProduct = null;
+
+    clearItemMasterFields();
+
+    showItemLookup(
+      "No SKU / Barcode found in Firebase /Data.",
+      false
+    );
+
+    return;
+
+  }
+
+  currentProduct = product;
+
+  fillItemMaster(product);
+
+};
+
+
+function findProduct(search) {
+
+  const target =
+    String(search)
+      .trim()
+      .toLowerCase();
+
+  for (
+    const product of productData
+  ) {
+
+    if (!product) continue;
+
+    const sku =
+      String(
+        product["SKU"] ??
+        product.sku ??
+        ""
+      )
+      .trim()
+      .toLowerCase();
+
+    const barcode =
+      String(
+        product["Barcodes"] ??
+        product["Barcode"] ??
+        product.barcode ??
+        ""
+      )
+      .trim()
+      .toLowerCase();
+
+    /*
+      Some records may contain:
+
+      123456,123457
+      123456 / 123457
+      123456;123457
+    */
+
+    const barcodeParts =
+      barcode
+        .split(/[,;\/|]+/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
+    if (
+      sku === target ||
+      barcode === target ||
+      barcodeParts.includes(target)
+    ) {
+
+      return product;
+
+    }
+
+  }
+
+  return null;
+
+}
+
+
+/* =========================================================
+   PRODUCT FORM
+========================================================= */
+
+function fillItemMaster(product) {
+
+  document.getElementById(
+    "itemSku"
+  ).value =
+    product["SKU"] ??
+    product.sku ??
+    "";
+
+  document.getElementById(
+    "itemName"
+  ).value =
+    product["EN Desc"] ??
+    product["Item Name"] ??
+    product.itemName ??
+    "";
+
+  document.getElementById(
+    "itemUom"
+  ).value =
+    product["UOM"] ??
+    "";
+
+  document.getElementById(
+    "itemCost"
+  ).value =
+    product["Cost"] ??
+    "";
+
+  document.getElementById(
+    "itemSupplier"
+  ).value =
+    product["Default Supplier"] ??
+    "";
+
+  document.getElementById(
+    "itemVendor"
+  ).value =
+    product["Vendor Code"] ??
+    "";
+
+  showItemLookup(
+    "Item found successfully.",
+    true
+  );
+
+}
+
+
+function clearItemMasterFields() {
+
+  [
+    "itemSku",
+    "itemName",
+    "itemUom",
+    "itemCost",
+    "itemSupplier",
+    "itemVendor"
+  ].forEach(id => {
+
+    const el =
+      document.getElementById(id);
+
+    if (el) el.value = "";
+
+  });
+
+}
+
+
+function showItemLookup(text, success) {
+
+  const el =
+    document.getElementById(
+      "itemLookupResult"
+    );
+
+  if (!el) return;
+
+  el.textContent = text;
+
+  el.className =
+    "lookup-result show";
+
+  el.style.background =
+    success
+      ? "#f0fdf4"
+      : "#fef2f2";
+
+  el.style.borderColor =
+    success
+      ? "#bbf7d0"
+      : "#fecaca";
+
+}
+
+
+window.barcodeEnter = function(event) {
+
+  if (
+    event.key !== "Enter"
+  ) return;
+
+  event.preventDefault();
+
+  lookupItem();
+
+};
+
+
+/* =========================================================
+   ADD ITEM
+========================================================= */
+
+window.addItem = function() {
+
+  const barcode =
+    document.getElementById(
+      "barcodeInput"
+    ).value.trim();
+
+  const qty =
+    Number(
+      document.getElementById(
+        "itemQty"
+      ).value
+    );
+
+  const expiry =
+    document.getElementById(
+      "itemExpiry"
+    ).value;
+
+  if (!currentStore) {
+
+    showFormMessage(
+      "Please enter a valid Store Code first.",
+      "error"
+    );
+
+    return;
+
+  }
+
+  if (!currentProduct) {
+
+    showFormMessage(
+      "Please enter a valid SKU or Barcode.",
+      "error"
+    );
+
+    return;
+
+  }
+
+  if (!qty || qty <= 0) {
+
+    showFormMessage(
+      "Enter Quantity.",
+      "error"
+    );
+
+    return;
+
+  }
+
+  if (!expiry) {
+
+    showFormMessage(
+      "Enter Expiry Date.",
+      "error"
+    );
+
+    return;
+
+  }
+
+  currentItems.push({
+
+    sku:
+      currentProduct["SKU"] ||
+      currentProduct.sku ||
+      "",
+
+    barcode,
+
+    itemName:
+      currentProduct["EN Desc"] ||
+      currentProduct["Item Name"] ||
+      "",
+
+    uom:
+      currentProduct["UOM"] ||
+      "",
+
+    cost:
+      Number(
+        currentProduct["Cost"] || 0
+      ),
+
+    quantity:qty,
+
+    expiryDate:expiry,
+
+    supplier:
+      currentProduct["Default Supplier"] ||
+      "",
+
+    vendorCode:
+      currentProduct["Vendor Code"] ||
+      ""
+
+  });
+
+  renderItems();
+
+  clearItem();
+
+};
+
+
+/* =========================================================
+   CLEAR ITEM
+========================================================= */
+
+window.clearItem = function() {
+
+  document.getElementById(
+    "barcodeInput"
+  ).value = "";
+
+  document.getElementById(
+    "itemQty"
+  ).value = "";
+
+  document.getElementById(
+    "itemExpiry"
+  ).value = "";
+
+  currentProduct = null;
+
+  clearItemMasterFields();
+
+  const result =
+    document.getElementById(
+      "itemLookupResult"
+    );
+
+  if (result) {
+
+    result.className =
+      "lookup-result";
+
+  }
+
+};
+
+
+/* =========================================================
+   RENDER ITEMS
+========================================================= */
+
+function renderItems() {
+
+  const body =
+    document.getElementById(
+      "itemsBody"
+    );
+
+  body.innerHTML = "";
+
+  currentItems.forEach(
+    (item,index) => {
+
+      const tr =
+        document.createElement(
+          "tr"
+        );
+
+      tr.innerHTML = `
+
+        <td>${escapeHtml(item.sku)}</td>
+
+        <td>${escapeHtml(item.barcode)}</td>
+
+        <td>${escapeHtml(item.itemName)}</td>
+
+        <td>${escapeHtml(item.uom)}</td>
+
+        <td>${formatNumber(item.cost)}</td>
+
+        <td>${formatNumber(item.quantity)}</td>
+
+        <td>${escapeHtml(item.expiryDate)}</td>
+
+        <td>
+          <button
+            class="btn-red"
+            onclick="removeItem(${index})">
+            Remove
+          </button>
+        </td>
+
+      `;
+
+      body.appendChild(tr);
+
+    }
+  );
+
+}
+
+
+window.removeItem = function(index) {
+
+  currentItems.splice(
+    index,
+    1
+  );
+
+  renderItems();
+
+};
 
 
 /* =========================================================
    SAVE DRAFT
 ========================================================= */
 
-async function saveDraft() {
+window.saveDraft = async function() {
+
+  if (!validateSubmission())
+    return;
 
   try {
 
-    const data =
-      getFormData();
-
-
-    validate(data);
-
-
-    if (!currentUser) {
-
-      throw new Error(
-        "Firebase authentication is not ready."
+    const draftRef =
+      push(
+        ref(
+          db,
+          "expiryMonitoring/drafts"
+        )
       );
-    }
-
-
-    const draftId =
-      getDraftId(data);
-
 
     await set(
-
-      ref(
-        db,
-        `expiryMonitoring/drafts/${draftId}`
-      ),
-
-      {
-
-        ...data,
-
-        status: "DRAFT",
-
-        updatedAt:
-          serverTimestamp(),
-
-        userId:
-          currentUser.uid
-      }
+      draftRef,
+      buildSubmissionObject(
+        "DRAFT"
+      )
     );
 
-
-    showStatus(
-      "✓ Draft saved successfully.",
-      "ok"
+    showFormMessage(
+      "Draft saved successfully.",
+      "success"
     );
 
-
-  } catch (error) {
+  } catch(error) {
 
     console.error(error);
 
-    showStatus(
+    showFormMessage(
+      "Draft save failed: " +
       error.message,
-      "err"
+      "error"
     );
+
   }
-}
+
+};
 
 
 /* =========================================================
    SUBMIT
 ========================================================= */
 
-async function submitForm() {
+window.submitExpiry = async function() {
+
+  if (!validateSubmission())
+    return;
+
+  if (
+    !confirm(
+      "Submit this expiry monitoring record?"
+    )
+  ) return;
 
   try {
 
-    const data =
-      getFormData();
-
-
-    validate(data);
-
-
-    if (!currentUser) {
-
-      throw new Error(
-        "Firebase authentication is not ready."
-      );
-    }
-
-
-    const submissionReference =
+    const submissionRef =
       push(
         ref(
           db,
@@ -1363,143 +1055,1272 @@ async function submitForm() {
         )
       );
 
-
     await set(
-      submissionReference,
-      {
-
-        ...data,
-
-        status:
-          "SUBMITTED",
-
-        submittedAt:
-          serverTimestamp(),
-
-        userId:
-          currentUser.uid
-      }
+      submissionRef,
+      buildSubmissionObject(
+        "SUBMITTED"
+      )
     );
 
+    showFormMessage(
+      "Submission completed successfully.",
+      "success"
+    );
 
-    const draftId =
-      getDraftId(data);
+    currentItems = [];
 
+    renderItems();
+
+  } catch(error) {
+
+    console.error(error);
+
+    showFormMessage(
+      "Submission failed: " +
+      error.message,
+      "error"
+    );
+
+  }
+
+};
+
+
+function validateSubmission() {
+
+  if (!currentStore) {
+
+    showFormMessage(
+      "Valid Store Code is required.",
+      "error"
+    );
+
+    return false;
+
+  }
+
+  if (!currentItems.length) {
+
+    showFormMessage(
+      "Please add at least one item.",
+      "error"
+    );
+
+    return false;
+
+  }
+
+  return true;
+
+}
+
+
+function buildSubmissionObject(status) {
+
+  return {
+
+    storeCode:
+      currentStore.code,
+
+    storeName:
+      currentStore.storeName || "",
+
+    areaManager:
+      currentStore.areaManager || "",
+
+    operationManager:
+      currentStore.operationManager || "",
+
+    category:
+      document.getElementById(
+        "category"
+      ).value,
+
+    cycleStart:
+      document.getElementById(
+        "cycleStart"
+      ).value,
+
+    cycleEnd:
+      document.getElementById(
+        "cycleEnd"
+      ).value,
+
+    status,
+
+    items:currentItems,
+
+    submittedAt:
+      new Date().toISOString(),
+
+    source:"GitHub Firebase Form"
+
+  };
+
+}
+
+
+/* =========================================================
+   ADMIN TABS
+========================================================= */
+
+window.openAdminTab = function(
+  tab,
+  button
+) {
+
+  document
+    .querySelectorAll(
+      ".admin-panel"
+    )
+    .forEach(panel => {
+
+      panel.classList.remove(
+        "active"
+      );
+
+    });
+
+  document
+    .querySelectorAll(
+      ".admin-tab"
+    )
+    .forEach(btn => {
+
+      btn.classList.remove(
+        "active"
+      );
+
+    });
+
+  const panel =
+    document.getElementById(
+      "admin" +
+      capitalize(tab)
+    );
+
+  if (panel)
+    panel.classList.add(
+      "active"
+    );
+
+  if (button)
+    button.classList.add(
+      "active"
+    );
+
+};
+
+
+function capitalize(value) {
+
+  return value.charAt(0).toUpperCase() +
+    value.slice(1);
+
+}
+
+
+/* =========================================================
+   STORE ADMIN
+========================================================= */
+
+window.saveStore = async function() {
+
+  const code =
+    document.getElementById(
+      "adminStoreCode"
+    ).value.trim();
+
+  if (!code) {
+
+    alert(
+      "Store Code is required."
+    );
+
+    return;
+
+  }
+
+  const data = {
+
+    storeName:
+      document.getElementById(
+        "adminStoreName"
+      ).value.trim(),
+
+    areaManager:
+      document.getElementById(
+        "adminAreaManager"
+      ).value.trim(),
+
+    operationManager:
+      document.getElementById(
+        "adminOperationManager"
+      ).value.trim(),
+
+    email:
+      document.getElementById(
+        "adminStoreEmail"
+      ).value.trim(),
+
+    classification:
+      document.getElementById(
+        "adminClassification"
+      ).value
+
+  };
+
+  try {
 
     await set(
       ref(
         db,
-        `expiryMonitoring/drafts/${draftId}`
+        "storeMaster/" +
+        safeFirebaseKey(code)
       ),
-      null
+      data
     );
 
-
-    showStatus(
-      "✓ Submitted successfully.",
-      "ok"
+    alert(
+      "Store saved successfully."
     );
 
+    clearStoreForm();
 
-  } catch (error) {
+  } catch(error) {
 
-    console.error(error);
-
-    showStatus(
-      error.message,
-      "err"
+    alert(
+      "Error: " +
+      error.message
     );
+
   }
-}
+
+};
 
 
-/* =========================================================
-   MAKE FUNCTIONS AVAILABLE TO HTML
-========================================================= */
+window.editStore = function(code) {
 
-window.addRow =
-  addRow;
+  const store =
+    findStore(code);
 
-window.saveDraft =
-  saveDraft;
+  if (!store) return;
 
-window.submitForm =
-  submitForm;
+  document.getElementById(
+    "adminStoreCode"
+  ).value = code;
+
+  document.getElementById(
+    "adminStoreName"
+  ).value =
+    store.storeName || "";
+
+  document.getElementById(
+    "adminAreaManager"
+  ).value =
+    store.areaManager || "";
+
+  document.getElementById(
+    "adminOperationManager"
+  ).value =
+    store.operationManager || "";
+
+  document.getElementById(
+    "adminStoreEmail"
+  ).value =
+    store.email || "";
+
+  document.getElementById(
+    "adminClassification"
+  ).value =
+    store.classification || "";
+
+};
 
 
-/* =========================================================
-   STORE CODE EVENTS
-========================================================= */
+window.deleteStore = async function(code) {
 
-$("storeCode")
-  ?.addEventListener(
-    "change",
-    () => loadStore(
-      $("storeCode").value
+  if (
+    !confirm(
+      "Delete Store " +
+      code +
+      "?"
     )
-  );
+  ) return;
 
+  try {
 
-$("storeCode")
-  ?.addEventListener(
-    "blur",
-    () => loadStore(
-      $("storeCode").value
-    )
-  );
-
-
-/* =========================================================
-   FIREBASE ANONYMOUS LOGIN
-========================================================= */
-
-signInAnonymously(auth)
-
-  .then(result => {
-
-    currentUser =
-      result.user;
-
-
-    if ($("authStatus")) {
-
-      $("authStatus").textContent =
-        "Firebase connected";
-    }
-
-
-    showStatus(
-      "✓ Firebase connected.",
-      "info"
+    await remove(
+      ref(
+        db,
+        "storeMaster/" +
+        safeFirebaseKey(code)
+      )
     );
 
-  })
+  } catch(error) {
 
-  .catch(error => {
-
-    console.error(error);
-
-
-    if ($("authStatus")) {
-
-      $("authStatus").textContent =
-        "Firebase authentication error";
-    }
-
-
-    showStatus(
-      "Enable Anonymous Authentication in Firebase Console.",
-      "err"
+    alert(
+      error.message
     );
+
+  }
+
+};
+
+
+window.clearStoreForm = function() {
+
+  [
+    "adminStoreCode",
+    "adminStoreName",
+    "adminAreaManager",
+    "adminOperationManager",
+    "adminStoreEmail"
+  ].forEach(id => {
+
+    document.getElementById(
+      id
+    ).value = "";
 
   });
 
+  document.getElementById(
+    "adminClassification"
+  ).value = "";
+
+};
+
 
 /* =========================================================
-   START WITH ONE EMPTY ITEM ROW
+   STORE TABLE
 ========================================================= */
 
-if ($("rows")) {
+function renderStoreTable() {
 
-  addRow();
+  const body =
+    document.getElementById(
+      "storesTable"
+    );
+
+  if (!body) return;
+
+  body.innerHTML = "";
+
+  Object.keys(storeMaster)
+    .sort()
+    .forEach(code => {
+
+      const store =
+        normalizeStore(
+          code,
+          storeMaster[code] || {}
+        );
+
+      const tr =
+        document.createElement(
+          "tr"
+        );
+
+      tr.innerHTML = `
+
+        <td>
+          <b>${escapeHtml(code)}</b>
+        </td>
+
+        <td>
+          ${escapeHtml(
+            store.storeName || ""
+          )}
+        </td>
+
+        <td>
+          ${escapeHtml(
+            store.areaManager || ""
+          )}
+        </td>
+
+        <td>
+          ${escapeHtml(
+            store.operationManager || ""
+          )}
+        </td>
+
+        <td>
+          <span class="badge">
+            ${escapeHtml(
+              store.classification || ""
+            )}
+          </span>
+        </td>
+
+        <td>
+
+          <button
+            class="btn-blue"
+            onclick="editStore('${escapeJs(code)}')">
+            Edit
+          </button>
+
+          <button
+            class="btn-red"
+            onclick="deleteStore('${escapeJs(code)}')">
+            Delete
+          </button>
+
+        </td>
+
+      `;
+
+      body.appendChild(tr);
+
+    });
+
 }
+
+
+/* =========================================================
+   CATEGORY ADMIN
+========================================================= */
+
+window.saveCategory = async function() {
+
+  const name =
+    document.getElementById(
+      "adminCategoryName"
+    ).value.trim();
+
+  if (!name) {
+
+    alert(
+      "Enter category name."
+    );
+
+    return;
+
+  }
+
+  const key =
+    safeFirebaseKey(name);
+
+  try {
+
+    await set(
+      ref(
+        db,
+        "categories/" + key
+      ),
+      {
+        name:name,
+        active:true,
+        updatedAt:
+          new Date().toISOString()
+      }
+    );
+
+    document.getElementById(
+      "adminCategoryName"
+    ).value = "";
+
+  } catch(error) {
+
+    alert(
+      error.message
+    );
+
+  }
+
+};
+
+
+window.deleteCategory = async function(
+  key
+) {
+
+  if (
+    !confirm(
+      "Delete this category?"
+    )
+  ) return;
+
+  try {
+
+    await remove(
+      ref(
+        db,
+        "categories/" +
+        key
+      )
+    );
+
+  } catch(error) {
+
+    alert(
+      error.message
+    );
+
+  }
+
+};
+
+
+function renderCategoryTable() {
+
+  const body =
+    document.getElementById(
+      "categoriesTable"
+    );
+
+  if (!body) return;
+
+  body.innerHTML = "";
+
+  Object.keys(categories)
+    .sort()
+    .forEach(key => {
+
+      const value =
+        categories[key];
+
+      const name =
+        typeof value === "string"
+          ? value
+          : (
+              value.name ||
+              key
+            );
+
+      const tr =
+        document.createElement(
+          "tr"
+        );
+
+      tr.innerHTML = `
+
+        <td>
+          ${escapeHtml(name)}
+        </td>
+
+        <td>
+
+          <button
+            class="btn-red"
+            onclick="deleteCategory('${escapeJs(key)}')">
+            Delete
+          </button>
+
+        </td>
+
+      `;
+
+      body.appendChild(tr);
+
+    });
+
+}
+
+
+/* =========================================================
+   STORE CATEGORY ASSIGNMENT
+========================================================= */
+
+window.assignCategory = async function() {
+
+  const store =
+    document.getElementById(
+      "assignmentStore"
+    ).value;
+
+  const category =
+    document.getElementById(
+      "assignmentCategory"
+    ).value;
+
+  if (!store || !category) {
+
+    alert(
+      "Select Store and Category."
+    );
+
+    return;
+
+  }
+
+  try {
+
+    await set(
+      ref(
+        db,
+        "storeCategories/" +
+        safeFirebaseKey(store) +
+        "/" +
+        safeFirebaseKey(category)
+      ),
+      true
+    );
+
+  } catch(error) {
+
+    alert(
+      error.message
+    );
+
+  }
+
+};
+
+
+window.removeCategoryAssignment =
+async function() {
+
+  const store =
+    document.getElementById(
+      "assignmentStore"
+    ).value;
+
+  const category =
+    document.getElementById(
+      "assignmentCategory"
+    ).value;
+
+  if (!store || !category)
+    return;
+
+  try {
+
+    await remove(
+      ref(
+        db,
+        "storeCategories/" +
+        safeFirebaseKey(store) +
+        "/" +
+        safeFirebaseKey(category)
+      )
+    );
+
+  } catch(error) {
+
+    alert(
+      error.message
+    );
+
+  }
+
+};
+
+
+function renderAssignmentTable() {
+
+  const body =
+    document.getElementById(
+      "assignmentTable"
+    );
+
+  if (!body) return;
+
+  body.innerHTML = "";
+
+  Object.keys(storeCategories)
+    .sort()
+    .forEach(storeCode => {
+
+      const cats =
+        storeCategories[
+          storeCode
+        ] || {};
+
+      Object.keys(cats)
+        .forEach(category => {
+
+          const store =
+            findStore(
+              storeCode
+            );
+
+          const tr =
+            document.createElement(
+              "tr"
+            );
+
+          tr.innerHTML = `
+
+            <td>
+              ${escapeHtml(storeCode)}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                store?.storeName || ""
+              )}
+            </td>
+
+            <td>
+              <span class="badge">
+                ${escapeHtml(category)}
+              </span>
+            </td>
+
+          `;
+
+          body.appendChild(tr);
+
+        });
+
+    });
+
+}
+
+
+/* =========================================================
+   SELECTORS
+========================================================= */
+
+function populateStoreSelectors() {
+
+  const selectors = [
+
+    "assignmentStore"
+
+  ];
+
+  selectors.forEach(id => {
+
+    const select =
+      document.getElementById(id);
+
+    if (!select) return;
+
+    const current =
+      select.value;
+
+    select.innerHTML =
+      `<option value="">
+        Select Store
+      </option>`;
+
+    Object.keys(storeMaster)
+      .sort()
+      .forEach(code => {
+
+        const store =
+          findStore(code);
+
+        const option =
+          document.createElement(
+            "option"
+          );
+
+        option.value = code;
+
+        option.textContent =
+          code +
+          " · " +
+          (
+            store?.storeName ||
+            ""
+          );
+
+        select.appendChild(
+          option
+        );
+
+      });
+
+    if (current)
+      select.value = current;
+
+  });
+
+}
+
+
+function populateCategorySelectors() {
+
+  const formSelect =
+    document.getElementById(
+      "category"
+    );
+
+  const adminSelect =
+    document.getElementById(
+      "assignmentCategory"
+    );
+
+  const current =
+    formSelect?.value || "";
+
+  const currentAdmin =
+    adminSelect?.value || "";
+
+
+  if (formSelect) {
+
+    formSelect.innerHTML =
+      `<option value="">
+        Select Category
+      </option>`;
+
+  }
+
+  if (adminSelect) {
+
+    adminSelect.innerHTML =
+      `<option value="">
+        Select Category
+      </option>`;
+
+  }
+
+
+  Object.keys(categories)
+    .sort()
+    .forEach(key => {
+
+      const value =
+        categories[key];
+
+      const name =
+        typeof value === "string"
+          ? value
+          : (
+              value.name ||
+              key
+            );
+
+      if (formSelect) {
+
+        const option =
+          document.createElement(
+            "option"
+          );
+
+        option.value = name;
+
+        option.textContent =
+          name;
+
+        formSelect.appendChild(
+          option
+        );
+
+      }
+
+
+      if (adminSelect) {
+
+        const option =
+          document.createElement(
+            "option"
+          );
+
+        option.value = name;
+
+        option.textContent =
+          name;
+
+        adminSelect.appendChild(
+          option
+        );
+
+      }
+
+    });
+
+
+  if (
+    formSelect &&
+    current
+  )
+    formSelect.value =
+      current;
+
+  if (
+    adminSelect &&
+    currentAdmin
+  )
+    adminSelect.value =
+      currentAdmin;
+
+}
+
+
+/* =========================================================
+   PRODUCT TABLE
+========================================================= */
+
+window.renderProducts = function() {
+
+  const body =
+    document.getElementById(
+      "productsTable"
+    );
+
+  if (!body) return;
+
+  const search =
+    String(
+      document.getElementById(
+        "productSearch"
+      )?.value || ""
+    )
+    .trim()
+    .toLowerCase();
+
+  body.innerHTML = "";
+
+  let count = 0;
+
+  productData.forEach(
+    product => {
+
+      if (count >= 500)
+        return;
+
+      const sku =
+        product["SKU"] ?? "";
+
+      const barcode =
+        product["Barcodes"] ??
+        product["Barcode"] ??
+        "";
+
+      const uom =
+        product["UOM"] ?? "";
+
+      const desc =
+        product["EN Desc"] ?? "";
+
+      const cost =
+        product["Cost"] ?? "";
+
+      const supplier =
+        product["Default Supplier"] ??
+        "";
+
+      const vendor =
+        product["Vendor Code"] ??
+        "";
+
+      const category =
+        product["Category"] ??
+        "";
+
+      const combined =
+        (
+          sku +
+          " " +
+          barcode +
+          " " +
+          desc +
+          " " +
+          category
+        )
+        .toLowerCase();
+
+      if (
+        search &&
+        !combined.includes(search)
+      )
+        return;
+
+      const tr =
+        document.createElement(
+          "tr"
+        );
+
+      tr.innerHTML = `
+
+        <td>${escapeHtml(sku)}</td>
+
+        <td>${escapeHtml(barcode)}</td>
+
+        <td>${escapeHtml(uom)}</td>
+
+        <td>${escapeHtml(desc)}</td>
+
+        <td>${escapeHtml(cost)}</td>
+
+        <td>${escapeHtml(supplier)}</td>
+
+        <td>${escapeHtml(vendor)}</td>
+
+        <td>${escapeHtml(category)}</td>
+
+      `;
+
+      body.appendChild(tr);
+
+      count++;
+
+    }
+  );
+
+};
+
+
+/* =========================================================
+   COUNTERS
+========================================================= */
+
+function updateStoreCount() {
+
+  const el =
+    document.getElementById(
+      "storeCount"
+    );
+
+  if (el)
+    el.textContent =
+      Object.keys(
+        storeMaster
+      ).length;
+
+}
+
+
+function updateCategoryCount() {
+
+  const el =
+    document.getElementById(
+      "categoryCount"
+    );
+
+  if (el)
+    el.textContent =
+      Object.keys(
+        categories
+      ).length;
+
+}
+
+
+function updateProductCount() {
+
+  const el =
+    document.getElementById(
+      "productCount"
+    );
+
+  if (el)
+    el.textContent =
+      productData.length;
+
+}
+
+
+function updateSubmissionCount() {
+
+  const el =
+    document.getElementById(
+      "submissionCount"
+    );
+
+  if (el)
+    el.textContent =
+      Object.keys(
+        submissions
+      ).length;
+
+}
+
+
+/* =========================================================
+   FIREBASE TEST
+========================================================= */
+
+window.testFirebase = async function() {
+
+  try {
+
+    await get(
+      ref(
+        db,
+        "Data"
+      )
+    );
+
+    showFirebaseAdminMessage(
+      "Firebase connection is working correctly.",
+      "success"
+    );
+
+  } catch(error) {
+
+    showFirebaseAdminMessage(
+      error.message,
+      "error"
+    );
+
+  }
+
+};
+
+
+window.reloadFirebaseData =
+function() {
+
+  startFirebaseListeners();
+
+  showFirebaseAdminMessage(
+    "Firebase listeners refreshed.",
+    "success"
+  );
+
+};
+
+
+function showFirebaseAdminMessage(
+  text,
+  type
+) {
+
+  const el =
+    document.getElementById(
+      "firebaseAdminMessage"
+    );
+
+  if (!el) return;
+
+  el.textContent = text;
+
+  el.className =
+    "message show " +
+    type;
+
+}
+
+
+/* =========================================================
+   PAGE NAVIGATION
+========================================================= */
+
+window.showPage = function(
+  pageId
+) {
+
+  document
+    .querySelectorAll(
+      ".page"
+    )
+    .forEach(page => {
+
+      page.classList.remove(
+        "active"
+      );
+
+    });
+
+  const page =
+    document.getElementById(
+      pageId
+    );
+
+  if (page)
+    page.classList.add(
+      "active"
+    );
+
+};
+
+
+/* =========================================================
+   FORM MESSAGE
+========================================================= */
+
+function showFormMessage(
+  text,
+  type
+) {
+
+  const el =
+    document.getElementById(
+      "formMessage"
+    );
+
+  if (!el) return;
+
+  el.textContent = text;
+
+  el.className =
+    "message show " +
+    type;
+
+}
+
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function escapeHtml(value) {
+
+  return String(
+    value ?? ""
+  )
+  .replaceAll("&","&amp;")
+  .replaceAll("<","&lt;")
+  .replaceAll(">","&gt;")
+  .replaceAll('"',"&quot;")
+  .replaceAll("'","&#039;");
+
+}
+
+
+function escapeJs(value) {
+
+  return String(
+    value ?? ""
+  )
+  .replaceAll("\\","\\\\")
+  .replaceAll("'","\\'");
+
+}
+
+
+function safeFirebaseKey(value) {
+
+  return String(
+    value
+  )
+  .trim()
+  .replace(/[.#$/\[\]]/g,"_");
+
+}
+
+
+function formatNumber(value) {
+
+  const n =
+    Number(value);
+
+  if (
+    Number.isNaN(n)
+  )
+    return "";
+
+  return n.toLocaleString(
+    undefined,
+    {
+      maximumFractionDigits:2
+    }
+  );
+
+}
+
+
+/* =========================================================
+   INITIAL UI
+========================================================= */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    populateCategorySelectors();
+
+    populateStoreSelectors();
+
+    renderItems();
+
+  }
+);
