@@ -1,12 +1,28 @@
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
 import {
-  getDatabase, ref, get, set, update, remove, push, onValue, runTransaction
+  getDatabase,
+  ref,
+  get,
+  set,
+  update,
+  remove,
+  push,
+  onValue,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-database.js";
+
 import {
-  getAuth, onAuthStateChanged, signInAnonymously,
-  signInWithEmailAndPassword, signOut
+  getAuth,
+  onAuthStateChanged,
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  signOut
 } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-auth.js";
+
+
+/* =========================================================
+   FIREBASE CONFIGURATION
+   ========================================================= */
 
 const firebaseConfig = {
   apiKey: "AIzaSyDXtkoz1xSpsWYuMV-wvm57TF0ajj0p9M9",
@@ -20,15 +36,55 @@ const firebaseConfig = {
 };
 
 const ADMIN_BOOTSTRAP_EMAIL = "sasco270@gmail.com";
+
 const DEFAULT_MIN_QTY = {
-  "Confectionery & Sweet Snacks": {B:180,C:80,A:220,D:50,Z:20,HR:60,MT:60,X:40},
-  "Grocery - Food & Grocery - Non Food": {B:80,C:60,A:100,D:40,Z:5,HR:30,MT:30,X:40},
-  "Beverages & Dairy & Salty Snacks & Frozen": {B:180,C:150,A:200,D:30,Z:30,HR:40,MT:40,X:60}
+  "Confectionery & Sweet Snacks": {
+    B: 180,
+    C: 80,
+    A: 220,
+    D: 50,
+    Z: 20,
+    HR: 60,
+    MT: 60,
+    X: 40
+  },
+
+  "Grocery - Food & Grocery - Non Food": {
+    B: 80,
+    C: 60,
+    A: 100,
+    D: 40,
+    Z: 5,
+    HR: 30,
+    MT: 30,
+    X: 40
+  },
+
+  "Beverages & Dairy & Salty Snacks & Frozen": {
+    B: 180,
+    C: 150,
+    A: 200,
+    D: 30,
+    Z: 30,
+    HR: 40,
+    MT: 40,
+    X: 60
+  }
 };
+
+
+/* =========================================================
+   FIREBASE INITIALIZATION
+   ========================================================= */
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
+
+
+/* =========================================================
+   GLOBAL DATA
+   ========================================================= */
 
 let stores = {};
 let employees = {};
@@ -37,1111 +93,3603 @@ let storeCategories = {};
 let categoryCycle = {};
 let minQty = {};
 let dataLookup = {};
+
 let currentStore = null;
 let currentEmployee = null;
 let currentCategory = "";
 let currentCycle = null;
+
 let scannedProducts = [];
 let submissionStatus = null;
 let pasteAllowed = true;
 let adminUser = null;
 let realtimeStarted = false;
 
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
 const $ = id => document.getElementById(id);
-const key = value => String(value ?? "").trim()
-  .replace(/[.#$[\]/]/g, "_")
-  .replace(/\s+/g, "_");
 
-function norm(value){ return String(value ?? "").trim().toLowerCase(); }
-function escapeHtml(value){
-  return String(value ?? "")
-    .replaceAll("&","&amp;").replaceAll("<","&lt;")
-    .replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+const key = value =>
+  String(value ?? "")
+    .trim()
+    .replace(/[.#$[\]/]/g, "_")
+    .replace(/\s+/g, "_");
+
+function norm(value) {
+  return String(value ?? "").trim().toLowerCase();
 }
-function safeJs(value){ return String(value ?? "").replaceAll("\\","\\\\").replaceAll("'","\\'"); }
 
-function toast(message,type="info"){
-  let el=$("toast");
-  if(!el){
-    el=document.createElement("div");
-    el.id="toast";
-    el.className="toast-notification";
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function safeJs(value) {
+  return String(value ?? "")
+    .replaceAll("\\", "\\\\")
+    .replaceAll("'", "\\'");
+}
+
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+
+function toast(message, type = "info") {
+  let el = $("toast");
+
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "toast";
+    el.className = "toast-notification";
     document.body.appendChild(el);
   }
-  el.className="toast-notification show "+type;
-  el.innerHTML=`<span>${escapeHtml(message)}</span><button class="toast-close" onclick="this.parentElement.className='toast-notification'">×</button>`;
+
+  el.className = "toast-notification show " + type;
+
+  el.innerHTML = `
+    <span>${escapeHtml(message)}</span>
+    <button
+      class="toast-close"
+      onclick="this.parentElement.className='toast-notification'"
+    >×</button>
+  `;
+
   clearTimeout(window.__toastTimer);
-  window.__toastTimer=setTimeout(()=>el.className="toast-notification",5000);
+
+  window.__toastTimer = setTimeout(() => {
+    el.className = "toast-notification";
+  }, 5000);
 }
 
-function setSystemStatus(ok,text){
-  const dot=$("statusDot"), st=$("statusText");
-  if(dot) dot.className="status-dot "+(ok?"online":"offline");
-  if(st) st.textContent=text;
-  const top=$("firebaseTopStatus");
-  if(top){top.textContent=text;top.className="status-chip "+(ok?"good":"bad");}
+
+/* =========================================================
+   SYSTEM STATUS
+   ========================================================= */
+
+function setSystemStatus(ok, text) {
+  const dot = $("statusDot");
+  const st = $("statusText");
+
+  if (dot) {
+    dot.className = "status-dot " + (ok ? "online" : "offline");
+  }
+
+  if (st) {
+    st.textContent = text;
+  }
+
+  const top = $("firebaseTopStatus");
+
+  if (top) {
+    top.textContent = text;
+    top.className = "status-chip " + (ok ? "good" : "bad");
+  }
 }
 
-window.showOnly=function(id){
-  ["landingPage","weeklyExpiryLoginPage","weeklyExpiryPage","adminPage"].forEach(x=>{
-    const el=$(x); if(el) el.style.display=(x===id?"block":"none");
-  });
-}
 
-window.openWeeklyExpiryMonitoring=()=>showOnly("weeklyExpiryLoginPage");
-window.expiryBackToHome=()=>{showOnly("landingPage");resetLogin();};
-window.goBackToHome=window.expiryBackToHome;
+/* =========================================================
+   PAGE NAVIGATION
+   ========================================================= */
 
-function resetLogin(){
-  if($("expiryLoginStoreCode")) $("expiryLoginStoreCode").value="";
-  if($("expiryLoginEmployeeId")) { $("expiryLoginEmployeeId").value=""; $("expiryLoginEmployeeId").disabled=true; }
-  if($("expiryStoreVerifiedPanel")) $("expiryStoreVerifiedPanel").classList.remove("show");
-  setLoginError("");
-}
+window.showOnly = function (id) {
 
-function setLoginError(msg){
-  const el=$("expiryLoginError");
-  if(!el)return;
-  el.textContent=msg||"";
-  el.style.display=msg?"block":"none";
-}
+  [
+    "landingPage",
+    "weeklyExpiryLoginPage",
+    "weeklyExpiryPage",
+    "adminPage"
+  ].forEach(x => {
 
-async function ensureAnonymous(){
-  if(auth.currentUser && auth.currentUser.isAnonymous) return auth.currentUser;
-  if(auth.currentUser && !auth.currentUser.isAnonymous) return auth.currentUser;
-  return signInAnonymously(auth).then(r=>r.user);
-}
+    const el = $(x);
 
-onAuthStateChanged(auth, async user=>{
-  if(user){
-    if(user.isAnonymous){
-      setSystemStatus(true,"Firebase Connected");
-    }else{
-      adminUser=user;
-      setSystemStatus(true,"Admin Authenticated");
+    if (el) {
+      el.style.display = x === id ? "block" : "none";
     }
-  }else{
-    setSystemStatus(false,"Authentication Error");
-  }
-});
 
-async function read(path){
-  const snap=await get(ref(db,path));
-  return snap.exists()?snap.val():null;
-}
-
-function activeAdmin(){
-  return !!(adminUser && !adminUser.isAnonymous);
-}
-
-function adminCheck(){
-  if(!activeAdmin()){ toast("Admin login required.","error"); return false; }
-  return true;
-}
-
-/* ---------- Firebase realtime master data ---------- */
-
-function startRealtime(){
-  if(realtimeStarted)return;
-  realtimeStarted=true;
-
-  onValue(ref(db,"storeMaster"),s=>{stores=s.val()||{};});
-  onValue(ref(db,"employeeMaster"),s=>{employees=s.val()||{};});
-  onValue(ref(db,"categories"),s=>{categories=s.val()||{};});
-  onValue(ref(db,"storeCategories"),s=>{storeCategories=s.val()||{};});
-  onValue(ref(db,"categoryCycle"),s=>{categoryCycle=s.val()||{}; refreshCategoryDropdown();});
-  onValue(ref(db,"minQty"),s=>{minQty=s.val()||{}; if(!Object.keys(minQty).length) minQty=DEFAULT_MIN_QTY; updateMinimumRequirementDisplay();});
-  onValue(ref(db,"settings/barcodePasteAllowed"),s=>{pasteAllowed=s.exists()?s.val()!==false:true; applyBarcodePasteBehavior();});
-  onValue(ref(db,"dataLookup"),s=>{dataLookup=s.val()||{};});
-}
-ensureAnonymous().then(()=>startRealtime()).catch(e=>{
-  console.error(e);
-  setSystemStatus(false,"Authentication Error");
-});
-
-/* ---------- Login: same transfer-friendly rule as original ---------- */
-
-window.expiryVerifyStore=async function(){
-  const code=$("expiryLoginStoreCode")?.value.trim();
-  if(!code){setLoginError("Store Code is required.");return;}
-  const store=findStore(code);
-  if(!store){setLoginError("Store Code was not found in Firebase storeMaster.");return;}
-
-  $("expiryVerifiedStoreName").textContent=store.name;
-  $("expiryVerifiedStoreCode").textContent=store.code;
-  $("expiryVerifiedStoreClass").textContent=store.classification||"C";
-  $("expiryVerifiedStoreAM").textContent=store.areaManager||"Not Assigned";
-  $("expiryVerifiedStoreOM").textContent=store.operationManager||"Not Assigned";
-  $("expiryStoreVerifiedPanel").classList.add("show");
-  $("expiryLoginEmployeeId").disabled=false;
-  $("expiryLoginEmployeeId").focus();
-  setLoginError("");
-  toast(`Store verified: ${store.name} (${store.code})`,"success");
-};
-
-function findStore(code){
-  const wanted=norm(code);
-  const direct=stores[code] || stores[String(code)];
-  if(direct)return normalizeStore(code,direct);
-  for(const [k,v] of Object.entries(stores||{})){
-    const s=v||{};
-    if(norm(s.code||s.storeCode||k)===wanted)return normalizeStore(k,s);
-  }
-  return null;
-}
-function normalizeStore(code,s){
-  return {
-    ...s, code:String(s.code||s.storeCode||code),
-    name:String(s.name||s.storeName||s.palmStore||code),
-    classification:String(s.classification||s.storeType||"C"),
-    areaManager:String(s.areaManager||""),
-    operationManager:String(s.operationManager||""),
-    region:String(s.region||""),location:String(s.location||""),
-    email:String(s.email||"")
-  };
-}
-
-function findEmployee(employeeId){
-  const wanted=norm(employeeId);
-  if(employees[employeeId])return normalizeEmployee(employeeId,employees[employeeId]);
-  for(const [k,v] of Object.entries(employees||{})){
-    if(norm(v?.employeeId||v?.id||k)===wanted)return normalizeEmployee(k,v);
-  }
-  return null;
-}
-function normalizeEmployee(id,e){
-  return {
-    ...e,
-    employeeId:String(e.employeeId||e.id||id),
-    employeeName:String(e.employeeName||e.name||""),
-    status:String(e.status||"Active"),
-    storeCode:String(e.storeCode||""),
-    designation:String(e.designation||"")
-  };
-}
-function employeeActive(e){
-  return !e || /^(inactive|terminated|resigned|blocked|suspended|left)$/i.test(String(e.status||""));
-}
-
-window.expiryDoLogin=async function(){
-  const storeCode=$("expiryLoginStoreCode")?.value.trim();
-  const employeeId=$("expiryLoginEmployeeId")?.value.trim();
-  if(!storeCode||!employeeId){setLoginError("Store Code and Employee ID are required.");return;}
-  const store=findStore(storeCode);
-  if(!store){setLoginError("Store Code was not found in Firebase.");return;}
-  const emp=findEmployee(employeeId);
-  if(!emp){setLoginError(`Employee ID ${employeeId} was not found in Firebase employeeMaster.`);return;}
-  if(!employeeActive(emp)){setLoginError(`Employee ID ${employeeId} is not active (${emp.status}).`);return;}
-
-  try{
-    // Fresh anonymous identity = one working-store session.
-    if(auth.currentUser) await signOut(auth);
-    const anon=(await signInAnonymously(auth)).user;
-
-    await set(ref(db,`storeSessions/${anon.uid}`),{
-      storeCode:store.code,
-      employeeId:emp.employeeId,
-      loginAt:Date.now()
-    });
-
-    currentStore=store;
-    currentEmployee=emp;
-    sessionStorage.setItem("expiryStore",JSON.stringify(store));
-    sessionStorage.setItem("expiryEmployee",JSON.stringify(emp));
-
-    $("storeCodeInput").value=store.code;
-    $("verifiedStoreName").textContent=store.name;
-    $("verifiedStoreCode").textContent=store.code;
-    $("verifiedStoreClass").textContent=store.classification;
-    $("verifiedAreaManager").textContent=store.areaManager||"Not Assigned";
-    $("verifiedOperationManager").textContent=store.operationManager||"Not Assigned";
-    $("classificationBox").textContent="Class: "+(store.classification||"C");
-    $("empId").value=emp.employeeId;
-    $("expiryIdentityBadge").innerHTML=`<i class="fas fa-user-check"></i> ${escapeHtml(emp.employeeName||emp.employeeId)}`;
-
-    showOnly("weeklyExpiryPage");
-    refreshCategoryDropdown();
-    applyBarcodePasteBehavior();
-    loadSavedData();
-    checkSubmissionStatus();
-    toast("Store + Employee verified · Weekly Expiry opened","success");
-  }catch(e){
-    console.error(e);
-    setLoginError("Login failed: "+(e.message||String(e)));
-  }
-};
-
-function restoreSession(){
-  try{
-    const s=JSON.parse(sessionStorage.getItem("expiryStore")||"null");
-    const e=JSON.parse(sessionStorage.getItem("expiryEmployee")||"null");
-    if(s&&e){currentStore=s;currentEmployee=e;}
-  }catch(_){}
-}
-restoreSession();
-
-window.expiryLogoutAndHome=async function(){
-  try{
-    if(auth.currentUser?.isAnonymous) await signOut(auth);
-  }catch(_){}
-  currentStore=null;currentEmployee=null;scannedProducts=[];submissionStatus=null;
-  sessionStorage.removeItem("expiryStore");sessionStorage.removeItem("expiryEmployee");
-  resetLogin();showOnly("landingPage");renderAllRows();
-  try{await signInAnonymously(auth);}catch(_){}
-};
-
-/* ---------- Category cycle + store assignment ---------- */
-
-function cycleEntries(){
-  return Object.entries(categoryCycle||{}).map(([id,v])=>({...v,_id:id})).filter(x=>x);
-}
-function parseDate(v){
-  if(!v)return null;
-  if(v instanceof Date)return v;
-  const s=String(v).trim();
-  const d=new Date(s);
-  if(!isNaN(d))return d;
-  const m=s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
-  if(m)return new Date(+m[3],+m[2]-1,+m[1]);
-  return null;
-}
-function currentActiveCycles(){
-  const today=new Date();today.setHours(0,0,0,0);
-  return cycleEntries().filter(c=>{
-    const s=parseDate(c.start),e=parseDate(c.end);
-    if(!s||!e)return false;
-    e.setHours(23,59,59,999);
-    return today>=s&&today<=e;
   });
+};
+
+
+/*
+   IMPORTANT:
+   These functions are exposed globally because
+   index.html uses onclick="..."
+*/
+
+window.openWeeklyExpiryMonitoring = function () {
+  window.showOnly("weeklyExpiryLoginPage");
+};
+
+window.expiryBackToHome = function () {
+  window.showOnly("landingPage");
+  resetLogin();
+};
+
+window.goBackToHome = window.expiryBackToHome;
+
+
+/* =========================================================
+   LOGIN
+   ========================================================= */
+
+function resetLogin() {
+
+  if ($("expiryLoginStoreCode")) {
+    $("expiryLoginStoreCode").value = "";
+  }
+
+  if ($("expiryLoginEmployeeId")) {
+
+    $("expiryLoginEmployeeId").value = "";
+
+    $("expiryLoginEmployeeId").disabled = true;
+  }
+
+  if ($("expiryStoreVerifiedPanel")) {
+    $("expiryStoreVerifiedPanel").classList.remove("show");
+  }
+
+  setLoginError("");
 }
-function categoryAssigned(storeCode,category){
-  const assigned=storeCategories?.[storeCode]||{};
-  const exact=assigned[key(category)];
-  if(exact===true)return true;
-  // Support assignments stored by category name rather than safe key.
-  return Object.entries(assigned).some(([k,v])=>v===true && norm(k)===norm(category));
+
+
+function setLoginError(msg) {
+
+  const el = $("expiryLoginError");
+
+  if (!el) return;
+
+  el.textContent = msg || "";
+
+  el.style.display = msg ? "block" : "none";
 }
-function refreshCategoryDropdown(){
-  const dd=$("categoryDropdown"); if(!dd)return;
-  const previous=dd.value;
-  dd.innerHTML="";
-  if(!currentStore){
-    dd.add(new Option("Verify Store first",""));
+
+
+/* =========================================================
+   ANONYMOUS AUTH
+   ========================================================= */
+
+async function ensureAnonymous() {
+
+  if (
+    auth.currentUser &&
+    auth.currentUser.isAnonymous
+  ) {
+    return auth.currentUser;
+  }
+
+  if (
+    auth.currentUser &&
+    !auth.currentUser.isAnonymous
+  ) {
+    return auth.currentUser;
+  }
+
+  return signInAnonymously(auth)
+    .then(r => r.user);
+}
+
+
+/* =========================================================
+   AUTH STATE
+   ========================================================= */
+
+onAuthStateChanged(auth, async user => {
+
+  if (user) {
+
+    if (user.isAnonymous) {
+
+      setSystemStatus(
+        true,
+        "Firebase Connected"
+      );
+
+    } else {
+
+      setSystemStatus(
+        true,
+        "Firebase Connected"
+      );
+    }
+
+  } else {
+
+    setSystemStatus(
+      false,
+      "Authentication Required"
+    );
+  }
+
+});
+
+
+/* =========================================================
+   REALTIME FIREBASE LISTENERS
+   ========================================================= */
+
+function startRealtimeListeners() {
+
+  if (realtimeStarted) return;
+
+  realtimeStarted = true;
+
+
+  onValue(
+    ref(db, "storeMaster"),
+    snapshot => {
+
+      stores = snapshot.val() || {};
+
+      renderStoreAdmin();
+      refreshStoreLoginData();
+    }
+  );
+
+
+  onValue(
+    ref(db, "employeeMaster"),
+    snapshot => {
+
+      employees = snapshot.val() || {};
+
+      renderEmployeeAdmin();
+      refreshStoreLoginData();
+    }
+  );
+
+
+  onValue(
+    ref(db, "categories"),
+    snapshot => {
+
+      categories = snapshot.val() || {};
+
+      renderCategoryAdmin();
+      refreshCategoryDropdown();
+    }
+  );
+
+
+  onValue(
+    ref(db, "storeCategories"),
+    snapshot => {
+
+      storeCategories = snapshot.val() || {};
+
+      renderStoreCategoryAdmin();
+      refreshCategoryDropdown();
+    }
+  );
+
+
+  onValue(
+    ref(db, "categoryCycle"),
+    snapshot => {
+
+      categoryCycle = snapshot.val() || {};
+
+      renderCycleAdmin();
+      refreshCategoryDropdown();
+    }
+  );
+
+
+  onValue(
+    ref(db, "minQty"),
+    snapshot => {
+
+      minQty = snapshot.val() || {};
+
+      renderMinQtyAdmin();
+    }
+  );
+
+
+  onValue(
+    ref(db, "settings/barcodePasteAllowed"),
+    snapshot => {
+
+      pasteAllowed =
+        snapshot.val() !== false;
+
+      renderSettingsAdmin();
+    }
+  );
+
+
+  onValue(
+    ref(db, "dataLookup"),
+    snapshot => {
+
+      dataLookup = snapshot.val() || {};
+    }
+  );
+}
+
+
+/* =========================================================
+   STORE LOOKUP
+   ========================================================= */
+
+function findStore(storeCode) {
+
+  const code = norm(storeCode);
+
+  if (!code) return null;
+
+  const values = Object.values(stores || {});
+
+  return values.find(store =>
+    norm(store.code) === code
+  ) || null;
+}
+
+
+/* =========================================================
+   EMPLOYEE LOOKUP
+   ========================================================= */
+
+function findEmployee(employeeId) {
+
+  const id = norm(employeeId);
+
+  if (!id) return null;
+
+  const values = Object.values(
+    employees || {}
+  );
+
+  return values.find(emp =>
+    norm(emp.employeeId) === id
+  ) || null;
+}
+
+
+/* =========================================================
+   EMPLOYEE ACTIVE CHECK
+   ========================================================= */
+
+function employeeIsActive(employee) {
+
+  if (!employee) return false;
+
+  const status = norm(employee.status);
+
+  return ![
+    "inactive",
+    "terminated",
+    "resigned",
+    "blocked",
+    "suspended",
+    "left"
+  ].includes(status);
+}
+
+
+/* =========================================================
+   STORE LOGIN
+   ========================================================= */
+
+async function verifyStoreLogin() {
+
+  try {
+
+    const storeCode =
+      $("expiryLoginStoreCode")?.value?.trim();
+
+    if (!storeCode) {
+
+      setLoginError(
+        "Please enter Store Code."
+      );
+
+      return;
+    }
+
+
+    const store =
+      findStore(storeCode);
+
+    if (!store) {
+
+      setLoginError(
+        "Store Code not found."
+      );
+
+      return;
+    }
+
+
+    currentStore = store;
+
+
+    const panel =
+      $("expiryStoreVerifiedPanel");
+
+    if (panel) {
+      panel.classList.add("show");
+    }
+
+
+    const employeeInput =
+      $("expiryLoginEmployeeId");
+
+    if (employeeInput) {
+
+      employeeInput.disabled = false;
+
+      employeeInput.focus();
+    }
+
+
+    const storeName =
+      $("expiryVerifiedStoreName");
+
+    if (storeName) {
+      storeName.textContent =
+        store.name || "";
+    }
+
+
+    const storeCodeDisplay =
+      $("expiryVerifiedStoreCode");
+
+    if (storeCodeDisplay) {
+      storeCodeDisplay.textContent =
+        store.code || "";
+    }
+
+
+    setLoginError("");
+
+  } catch (error) {
+
+    console.error(error);
+
+    setLoginError(
+      error.message ||
+      "Unable to verify store."
+    );
+  }
+}
+
+
+/* =========================================================
+   FINAL LOGIN
+   ========================================================= */
+
+async function loginWeeklyExpiry() {
+
+  try {
+
+    const storeCode =
+      $("expiryLoginStoreCode")?.value?.trim();
+
+    const employeeId =
+      $("expiryLoginEmployeeId")?.value?.trim();
+
+
+    if (!storeCode) {
+
+      setLoginError(
+        "Please enter Store Code."
+      );
+
+      return;
+    }
+
+
+    if (!employeeId) {
+
+      setLoginError(
+        "Please enter Employee ID."
+      );
+
+      return;
+    }
+
+
+    const store =
+      findStore(storeCode);
+
+    if (!store) {
+
+      setLoginError(
+        "Store Code not found."
+      );
+
+      return;
+    }
+
+
+    const employee =
+      findEmployee(employeeId);
+
+    if (!employee) {
+
+      setLoginError(
+        "Employee ID not found."
+      );
+
+      return;
+    }
+
+
+    if (!employeeIsActive(employee)) {
+
+      setLoginError(
+        "This employee is inactive."
+      );
+
+      return;
+    }
+
+
+    await ensureAnonymous();
+
+
+    const uid =
+      auth.currentUser.uid;
+
+
+    await set(
+      ref(db, "storeSessions/" + uid),
+      {
+        storeCode: store.code,
+        employeeId: employee.employeeId,
+        loginAt: Date.now()
+      }
+    );
+
+
+    currentStore = store;
+    currentEmployee = employee;
+
+
+    showWeeklyExpiryForm();
+
+    setLoginError("");
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    setLoginError(
+      error.message ||
+      "Login failed."
+    );
+  }
+}
+
+
+/* =========================================================
+   WEEKLY EXPIRY PAGE
+   ========================================================= */
+
+function showWeeklyExpiryForm() {
+
+  window.showOnly(
+    "weeklyExpiryPage"
+  );
+
+
+  const storeCode =
+    $("weeklyStoreCode");
+
+  if (storeCode) {
+    storeCode.value =
+      currentStore?.code || "";
+  }
+
+
+  const storeName =
+    $("weeklyStoreName");
+
+  if (storeName) {
+    storeName.textContent =
+      currentStore?.name || "";
+  }
+
+
+  const employeeId =
+    $("weeklyEmployeeId");
+
+  if (employeeId) {
+    employeeId.value =
+      currentEmployee?.employeeId || "";
+  }
+
+
+  const employeeName =
+    $("weeklyEmployeeName");
+
+  if (employeeName) {
+    employeeName.textContent =
+      currentEmployee?.employeeName || "";
+  }
+
+
+  refreshCategoryDropdown();
+
+  renderExpiryTable();
+
+  loadDraft();
+}
+
+
+/* =========================================================
+   CATEGORY CYCLE
+   ========================================================= */
+
+function cycleKey(cycle) {
+
+  if (!cycle) return "";
+
+  return (
+    cycle._id ||
+    cycle.id ||
+    key(
+      `${cycle.category}_${cycle.start}_${cycle.end}`
+    )
+  );
+}
+
+
+function categoryIsInCycle(categoryName, cycle) {
+
+  if (!cycle) return false;
+
+  if (
+    norm(cycle.category) !==
+    norm(categoryName)
+  ) {
+    return false;
+  }
+
+
+  const today =
+    new Date();
+
+
+  today.setHours(
+    0, 0, 0, 0
+  );
+
+
+  const start =
+    parseDate(cycle.start);
+
+  const end =
+    parseDate(cycle.end);
+
+
+  if (!start || !end) {
+    return false;
+  }
+
+
+  return (
+    today >= start &&
+    today <= end
+  );
+}
+
+
+function getActiveCycles() {
+
+  return Object.entries(
+    categoryCycle || {}
+  )
+    .map(([id, value]) => ({
+      ...(value || {}),
+      _id: id
+    }))
+    .filter(cycle => {
+
+      const start =
+        parseDate(cycle.start);
+
+      const end =
+        parseDate(cycle.end);
+
+      if (!start || !end) {
+        return false;
+      }
+
+      const today =
+        new Date();
+
+      today.setHours(
+        0, 0, 0, 0
+      );
+
+      return (
+        today >= start &&
+        today <= end
+      );
+    });
+}
+
+
+/* =========================================================
+   CATEGORY DROPDOWN
+   ========================================================= */
+
+function refreshCategoryDropdown() {
+
+  const select =
+    $("categoryDropdown");
+
+  if (!select) return;
+
+  const storeCode =
+    currentStore?.code;
+
+  select.innerHTML =
+    `<option value="">Select Category</option>`;
+
+
+  if (!storeCode) return;
+
+
+  const assigned =
+    storeCategories?.[key(storeCode)] ||
+    storeCategories?.[storeCode] ||
+    {};
+
+
+  const activeCycles =
+    getActiveCycles();
+
+
+  Object.entries(categories || {})
+    .forEach(([id, category]) => {
+
+      if (!category?.active) {
+        return;
+      }
+
+
+      const categoryName =
+        category.name || id;
+
+
+      const assignedFlag =
+        assigned?.[key(categoryName)] === true;
+
+
+      if (!assignedFlag) {
+        return;
+      }
+
+
+      const cycle =
+        activeCycles.find(c =>
+          norm(c.category) ===
+          norm(categoryName)
+        );
+
+
+      if (!cycle) {
+        return;
+      }
+
+
+      const option =
+        document.createElement("option");
+
+      option.value =
+        categoryName;
+
+      option.textContent =
+        categoryName;
+
+      select.appendChild(option);
+    });
+}
+
+
+/* =========================================================
+   CATEGORY CHANGE
+   ========================================================= */
+
+function categoryChanged() {
+
+  const select =
+    $("categoryDropdown");
+
+  currentCategory =
+    select?.value || "";
+
+
+  const activeCycles =
+    getActiveCycles();
+
+
+  currentCycle =
+    activeCycles.find(c =>
+      norm(c.category) ===
+      norm(currentCategory)
+    ) || null;
+
+
+  scannedProducts = [];
+
+
+  renderExpiryTable();
+
+  updateMinimumRequirement();
+
+  loadDraft();
+}
+
+
+/* =========================================================
+   PRODUCT LOOKUP
+   ========================================================= */
+
+function findProduct(value) {
+
+  const search =
+    String(value || "").trim();
+
+
+  if (!search) return null;
+
+
+  const barcodeKey =
+    key(search);
+
+
+  const barcodeProduct =
+    dataLookup?.byBarcode?.[barcodeKey];
+
+
+  if (barcodeProduct) {
+    return normalizeProduct(
+      barcodeProduct
+    );
+  }
+
+
+  const skuProduct =
+    dataLookup?.bySku?.[barcodeKey];
+
+
+  if (skuProduct) {
+    return normalizeProduct(
+      skuProduct
+    );
+  }
+
+
+  return null;
+}
+
+
+/* =========================================================
+   NORMALIZE PRODUCT
+   ========================================================= */
+
+function normalizeProduct(product) {
+
+  if (!product) return null;
+
+
+  return {
+    ...product,
+
+    _id:
+      product._id ||
+      product.id ||
+      "",
+
+    _sourcePath:
+      product._sourcePath ||
+      "",
+
+    _isArray:
+      !!product._isArray,
+
+    SKU:
+      product.SKU ??
+      product.sku ??
+      "",
+
+    Barcodes:
+      product.Barcodes ??
+      product.barcode ??
+      product.Barcode ??
+      "",
+
+    UOM:
+      product.UOM ?? "",
+
+    "EN Desc":
+      product["EN Desc"] ??
+      product.description ??
+      product.itemName ??
+      "",
+
+    Cost:
+      Number(product.Cost ?? 0),
+
+    "Default Supplier":
+      product["Default Supplier"] ??
+      "",
+
+    "Vendor Code":
+      product["Vendor Code"] ??
+      "",
+
+    Category:
+      product.Category ??
+      product.category ??
+      "",
+
+    "Non - Returnable & Returnable":
+      product["Non - Returnable & Returnable"] ??
+      "",
+
+    Qty:
+      Number(product.Qty ?? 0),
+
+    "Total Cost":
+      Number(product["Total Cost"] ?? 0),
+
+    "Expiry Date":
+      product["Expiry Date"] ??
+      "",
+
+    "Days Left":
+      product["Days Left"] ??
+      ""
+  };
+}
+
+
+/* =========================================================
+   BARCODE SCAN
+   ========================================================= */
+
+async function lookupBarcode() {
+
+  const input =
+    $("barcodeInput");
+
+  if (!input) return;
+
+
+  const value =
+    input.value.trim();
+
+
+  if (!value) return;
+
+
+  const product =
+    findProduct(value);
+
+
+  if (!product) {
+
+    toast(
+      "Item not found in Data Master. Please contact Admin.",
+      "error"
+    );
+
     return;
   }
-  const active=currentActiveCycles();
-  const seen=new Set();
-  active.forEach(c=>{
-    const cat=String(c.category||"").trim();
-    if(!cat||seen.has(norm(cat))||!categoryAssigned(currentStore.code,cat))return;
-    seen.add(norm(cat));dd.add(new Option(cat,cat));
+
+
+  if (
+    currentCategory &&
+    norm(product.Category) !==
+    norm(currentCategory)
+  ) {
+
+    toast(
+      "This item does not belong to the selected category.",
+      "error"
+    );
+
+    return;
+  }
+
+
+  addProduct(product);
+
+
+  input.value = "";
+
+  input.focus();
+}
+
+
+/* =========================================================
+   ADD PRODUCT
+   ========================================================= */
+
+function addProduct(product) {
+
+  const barcode =
+    product.Barcodes ||
+    product.SKU;
+
+
+  const existing =
+    scannedProducts.find(
+      item =>
+        norm(item.barcode) ===
+        norm(barcode)
+    );
+
+
+  if (existing) {
+
+    toast(
+      "This item is already added.",
+      "warning"
+    );
+
+    return;
+  }
+
+
+  scannedProducts.push({
+
+    id:
+      crypto.randomUUID(),
+
+    sku:
+      product.SKU || "",
+
+    barcode:
+      barcode || "",
+
+    product:
+      product["EN Desc"] || "",
+
+    category:
+      product.Category || "",
+
+    categoryKey:
+      key(currentCategory),
+
+    Qty:
+      0,
+
+    ExpiryDate:
+      "",
+
+    UOM:
+      product.UOM || "",
+
+    Cost:
+      product.Cost || 0
   });
-  if(!seen.size){
-    const opt=new Option("No assigned active category","");opt.disabled=true;dd.add(opt);
-  }else{
-    if([...dd.options].some(o=>o.value===previous))dd.value=previous;
-    else dd.selectedIndex=0;
-  }
-  onCategoryChange();
-}
-window.onCategoryChange=function(){
-  currentCategory=$("categoryDropdown")?.value||"";
-  currentCycle=getCurrentCycle(currentCategory);
-  updateMinimumRequirementDisplay();
-  if(currentStore&&currentCategory){loadSavedData();checkSubmissionStatus();}
-  else {submissionStatus=null;updateSubmissionBanner();}
-};
-function getCurrentCycle(category){
-  const active=currentActiveCycles().filter(c=>norm(c.category)===norm(category));
-  if(!active.length)return null;
-  active.sort((a,b)=>String(a.start).localeCompare(String(b.start)));
-  return active[active.length-1];
-}
-window.openCategoryCycleGuide=function(){
-  const rows=currentActiveCycles().map(c=>`${c.category}: ${c.start} → ${c.end}`).join("\n");
-  toast(rows||"No active category cycle today.","info");
-};
-window.openCategoryGuide=window.openCategoryCycleGuide;
 
-/* ---------- Minimum quantity: same values/rule as original ---------- */
 
-function getMinimumQuantity(category,classification){
-  const req=minQty||DEFAULT_MIN_QTY;
-  const exact=req[category];
-  const cls=String(classification||"C").toUpperCase();
-  if(exact && exact[cls]!=null)return Number(exact[cls])||0;
-  if(exact){
-    const first=Object.values(exact)[0];return Number(first)||0;
+  renderExpiryTable();
+
+  updateMinimumRequirement();
+}
+
+
+/* =========================================================
+   DATE PARSER
+   ========================================================= */
+
+function parseDate(value) {
+
+  if (!value) return null;
+
+
+  if (
+    value instanceof Date
+  ) {
+    return new Date(value);
   }
-  const lower=norm(category);
-  for(const [k,v] of Object.entries(req)){
-    const parts=k.split(" & ");
-    if(parts.some(p=>lower.includes(norm(p))||norm(p).includes(lower))){
-      if(v[cls]!=null)return Number(v[cls])||0;
+
+
+  const text =
+    String(value).trim();
+
+
+  let match =
+    text.match(
+      /^(\d{2})\/(\d{2})\/(\d{4})$/
+    );
+
+
+  if (match) {
+
+    const day =
+      Number(match[1]);
+
+    const month =
+      Number(match[2]) - 1;
+
+    const year =
+      Number(match[3]);
+
+    const date =
+      new Date(
+        year,
+        month,
+        day
+      );
+
+    if (
+      date.getFullYear() === year &&
+      date.getMonth() === month &&
+      date.getDate() === day
+    ) {
+      return date;
     }
+
+    return null;
   }
-  return 50;
-}
-function updateMinimumRequirementDisplay(){
-  if(!currentStore||!currentCategory)return;
-  const cls=currentStore.classification||"C";
-  const min=getMinimumQuantity(currentCategory,cls);
-  if($("minReqValue"))$("minReqValue").textContent=min;
-  if($("minReqBox"))$("minReqBox").style.display="block";
-  if($("currentCategory"))$("currentCategory").textContent=currentCategory;
-  if($("reqCount"))$("reqCount").textContent=min;
-  if($("requiredCount"))$("requiredCount").textContent=min;
-  if($("currentCount"))$("currentCount").textContent=uniqueBarcodeCount();
-  if($("minReqInfo"))$("minReqInfo").classList.add(uniqueBarcodeCount()>=min?"req-met":"req-not-met");
-}
-function uniqueBarcodeCount(){
-  return new Set(scannedProducts.filter(x=>Number(x.Qty)>0&&x.ExpiryDate).map(x=>norm(x.barcode||x.sku))).size;
-}
 
-/* ---------- Product lookup: Firebase only ---------- */
 
-function lookupKey(v){return key(v).toLowerCase();}
-async function lookupProduct(code){
-  const k=lookupKey(code);
-  if(!k)return null;
-  let p=await read(`dataLookup/byBarcode/${k}`);
-  if(!p)p=await read(`dataLookup/bySku/${k}`);
-  return p?normalizeProduct(p):null;
-}
-function normalizeProduct(p){
-  const out={
-    sku:String(p.sku||p.SKU||""),
-    barcode:String(p.barcode||p.Barcodes||p.Barcode||""),
-    uom:String(p.uom||p.UOM||"PCS"),
-    description:String(p.description||p["EN Desc"]||p.Description||""),
-    cost:Number(p.cost??p.Cost??0)||0,
-    supplier:String(p.supplier||p["Default Supplier"]||p.Supplier||""),
-    vendorCode:String(p.vendorCode||p["Vendor Code"]||p.VendorCode||""),
-    category:String(p.category||p.Category||""),
-    nonReturnable:String(p.nonReturnable||p["Non - Returnable & Returnable"]||p.NonReturnable||"No"),
-    sourcePath:p.sourcePath||"",
-    dataId:p.dataId||""
-  };
-  if(p._id!=null)out._id=String(p._id);
-  if(p._sourcePath)out._sourcePath=String(p._sourcePath);
-  if(p._isArray)out._isArray=true;
-  return out;
-}
+  const date =
+    new Date(text);
 
-window.handleScan=async function(code){
-  code=String(code||"").trim();
-  if(!code)return;
-  if(!currentStore){toast("Please verify store first","warning");return;}
-  if(!currentCategory){toast("Select category first","warning");return;}
-  if(submissionStatus?.hasSubmitted){toast("This store has already submitted for this category. No more items can be added.","warning");return;}
-  const input=$("barcodeInput");
-  if(input){input.disabled=true;input.placeholder="Looking up barcode…";}
-  try{
-    const p=await lookupProduct(code);
-    if(!p){
-      toast("Item not found in Firebase Data. Contact Admin to add it to the master.","error");
-      return;
-    }
-    if(norm(p.category)!==norm(currentCategory)){
-      toast(`Item exists in "${p.category}". Today's category is "${currentCategory}".`,"error");
-      return;
-    }
-    autoAddToTable(p);
-  }catch(e){
-    toast("Firebase product lookup failed: "+e.message,"error");
-  }finally{
-    if(input){input.disabled=false;input.placeholder=pasteAllowed?"Scan Barcode (paste allowed)":"Scan Barcode (paste disabled)";input.focus();}
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
   }
-};
 
-function autoAddToTable(item){
-  const count=scannedProducts.filter(x=>norm(x.barcode||x.sku)===norm(item.barcode||item.sku)).length;
-  if(count>=3){
-    toast("Maximum 3 expiry dates allowed for the same barcode.","error");return;
+
+  return date;
+}
+
+
+/* =========================================================
+   EXPIRY VALIDATION
+   ========================================================= */
+
+function validateExpiryDate(value) {
+
+  const date =
+    parseDate(value);
+
+
+  if (!date) {
+
+    return {
+      ok: false,
+      message:
+        "Expiry Date must be DD/MM/YYYY."
+    };
   }
-  const copy={...item,Qty:0,TotalCost:"0.00",ExpiryDate:"",DaysLeft:"",Status:"",StoreCode:currentStore.code,AreaManager:currentStore.areaManager,OperationManager:currentStore.operationManager};
-  scannedProducts.push(copy);
-  renderAllRows();
-  updateSummary();
-  const idx=scannedProducts.length-1;
-  setTimeout(()=>{const q=$(`qty_${idx}`);if(q){q.focus();q.select();}},50);
-}
 
-function calculateDaysLeft(dateText){
-  const d=parseDDMMYYYY(dateText);if(!d)return "";
-  const today=new Date();today.setHours(0,0,0,0);
-  return Math.floor((d-today)/86400000);
-}
-function parseDDMMYYYY(v){
-  const s=String(v||"").trim();
-  const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if(!m)return null;
-  const d=new Date(+m[3],+m[2]-1,+m[1]);d.setHours(0,0,0,0);
-  if(d.getFullYear()!=+m[3]||d.getMonth()!=+m[2]-1||d.getDate()!=+m[1])return null;
-  return d;
-}
-function normalizeDate(v){
-  if(!v)return "";
-  if(v instanceof Date)return formatDDMMYYYY(v);
-  const s=String(v).trim();
-  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s))return s;
-  const d=new Date(s);
-  return isNaN(d)?"":formatDDMMYYYY(d);
-}
-function formatDDMMYYYY(d){
-  return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear();
-}
-function validateExpiryDate(v){
-  const d=parseDDMMYYYY(v);
-  if(!d)return {valid:false,message:"Expiry date must be DD/MM/YYYY."};
-  const min=new Date();min.setHours(0,0,0,0);min.setDate(min.getDate()-21);
-  const max=new Date(2035,11,31);max.setHours(0,0,0,0);
-  if(d<min)return {valid:false,message:`Expiry date cannot be older than 21 days. Earliest allowed date is ${formatDDMMYYYY(min)}.`};
-  if(d>max)return {valid:false,message:"Expiry date cannot be after 31/12/2035."};
-  return {valid:true};
-}
 
-function renderAllRows(){
-  const tbody=$("dataTable")?.querySelector("tbody");if(!tbody)return;
-  tbody.innerHTML="";
-  scannedProducts.forEach((p,i)=>{
-    const tr=document.createElement("tr");tr.id=`row_${i}`;
-    const days=calculateDaysLeft(p.ExpiryDate);
-    const status=days===""?"":days<0?"Expired":days<=7?"Critical":days<=14?"High":days<=30?"Near Expiry":"OK";
-    p.DaysLeft=days;
-    p.Status=status;
-    p.TotalCost=(Number(p.Qty||0)*Number(p.cost||0)).toFixed(2);
-    tr.innerHTML=`
-      <td><input type="checkbox" class="row-check" data-index="${i}" onchange="updateSelectedCount()"></td>
-      <td>${escapeHtml(p.sku)}</td>
-      <td>${escapeHtml(p.barcode)}</td>
-      <td>${escapeHtml(p.uom)}</td>
-      <td>${escapeHtml(p.description)}</td>
-      <td>${Number(p.cost||0).toFixed(2)}</td>
-      <td>${escapeHtml(p.supplier)}</td>
-      <td>${escapeHtml(p.vendorCode)}</td>
-      <td>${escapeHtml(p.category)}</td>
-      <td>${escapeHtml(p.nonReturnable)}</td>
-      <td><input class="qty-input" id="qty_${i}" type="number" min="0" value="${Number(p.Qty||0)}" onchange="updateRow(${i},'qty',this.value)"></td>
-      <td id="total_${i}">${p.TotalCost}</td>
-      <td><input class="expiry-input" id="exp_${i}" maxlength="10" placeholder="DD/MM/YYYY" value="${escapeHtml(p.ExpiryDate||"")}" onchange="updateRow(${i},'expiry',this.value)"></td>
-      <td class="${days!==""&&days<0?"expired":days!==""&&days<=30?"near":"ok"}">${days===""?"":days}</td>
-      <td>${escapeHtml(status)}</td>
-      <td><button class="btn btn-danger btn-xs" onclick="deleteRow(${i})"><i class="fas fa-trash"></i></button></td>`;
-    tbody.appendChild(tr);
-  });
-  $("skuCountValue").textContent=scannedProducts.length;
-  $("totalRecordsCount").textContent=scannedProducts.length;
-  updateCurrentCount();
-  updateSummary();
-  updateSelectedCount();
-}
-window.updateRow=function(i,type,value){
-  const p=scannedProducts[i];if(!p)return;
-  if(type==="qty")p.Qty=Math.max(0,Number(value)||0);
-  if(type==="expiry"){
-    const normalized=normalizeDate(value);
-    if(value && !normalized){toast("Expiry date must be DD/MM/YYYY.","error");return;}
-    if(normalized){
-      const check=validateExpiryDate(normalized);
-      if(!check.valid){toast(check.message,"error");return;}
-    }
-    p.ExpiryDate=normalized;
+  date.setHours(
+    0, 0, 0, 0
+  );
+
+
+  const today =
+    new Date();
+
+  today.setHours(
+    0, 0, 0, 0
+  );
+
+
+  const minimum =
+    new Date(today);
+
+  minimum.setDate(
+    minimum.getDate() - 21
+  );
+
+
+  const maximum =
+    new Date(
+      2035,
+      11,
+      31
+    );
+
+
+  if (date < minimum) {
+
+    return {
+      ok: false,
+      message:
+        "Expiry Date cannot be older than 21 days."
+    };
   }
-  renderAllRows();
-  updateMinimumRequirementDisplay();
-};
-window.deleteRow=function(i){scannedProducts.splice(i,1);renderAllRows();};
-window.toggleSelectAll=function(){
-  const checked=$("selectAll")?.checked;
-  document.querySelectorAll(".row-check").forEach(x=>x.checked=checked);
-  updateSelectedCount();
-};
-window.updateSelectedCount=function(){
-  const n=document.querySelectorAll(".row-check:checked").length;
-  if($("selectedCount"))$("selectedCount").textContent=n+" selected";
-};
-window.bulkDelete=function(){
-  const ids=[...document.querySelectorAll(".row-check:checked")].map(x=>Number(x.dataset.index)).sort((a,b)=>b-a);
-  ids.forEach(i=>scannedProducts.splice(i,1));
-  if($("selectAll"))$("selectAll").checked=false;
-  renderAllRows();
-};
-window.bulkMarkComplete=function(){
-  document.querySelectorAll(".row-check:checked").forEach(x=>{
-    const i=Number(x.dataset.index),p=scannedProducts[i];if(p&&!p.Qty)p.Qty=1;
-  });
-  renderAllRows();toast("Selected items marked complete.","success");
-};
-window.filterExpiry=function(){
-  const days=Number($("filterDays")?.value||30);
-  scannedProducts.forEach((p,i)=>{
-    const tr=$(`row_${i}`);if(!tr)return;
-    tr.style.display=(p.DaysLeft!==""&&Number(p.DaysLeft)<=days)?"":"none";
-  });
-};
-function updateSummary(){
-  const total=scannedProducts.reduce((a,p)=>a+Number(p.TotalCost||0),0);
-  if($("totalCost"))$("totalCost").textContent=total.toFixed(2);
-}
-function updateCurrentCount(){
-  if($("currentCount"))$("currentCount").textContent=uniqueBarcodeCount();
-  updateMinimumRequirementDisplay();
-}
 
-/* ---------- Save / submit ---------- */
 
-function cycleKey(cycle){
-  if(!cycle)return "no-cycle";
-  return key(cycle._id || `${cycle.start||""}_${cycle.end||""}`).toLowerCase();
-}
-function draftPath(){
-  return `expiryDrafts/${key(currentStore.code)}/${cycleKey(currentCycle)}/${key(currentCategory)}`;
-}
-function submissionPath(){
-  return `storeSubmissions/${key(currentStore.code)}/${key(currentCategory)}/${cycleKey(currentCycle)}`;
-}
-function submissionPayload(status){
+  if (date > maximum) {
+
+    return {
+      ok: false,
+      message:
+        "Expiry Date cannot be after 31/12/2035."
+    };
+  }
+
+
   return {
-    storeCode:currentStore.code,storeName:currentStore.name,
-    areaManager:currentStore.areaManager||"",operationManager:currentStore.operationManager||"",
-    classification:currentStore.classification||"C",
-    employeeId:currentEmployee.employeeId,employeeName:currentEmployee.employeeName||"",
-    employeeMasterStore:currentEmployee.storeCode||"",
-    assignmentStatus:currentEmployee.storeCode && norm(currentEmployee.storeCode)!==norm(currentStore.code)?"TRANSFER / TEMPORARY":"MATCHED",
-    category:currentCategory,cycleStart:currentCycle?.start||"",cycleEnd:currentCycle?.end||"",
-    status,items:scannedProducts.filter(x=>Number(x.Qty)>0&&x.ExpiryDate).map(x=>({...x,categoryKey:key(currentCategory)})),
-    itemCount:uniqueBarcodeCount(),submittedAt:new Date().toISOString(),savedAt:new Date().toISOString()
+    ok: true,
+    date
   };
 }
-function validateBeforeSave(requireMinimum){
-  if(!currentStore||!currentEmployee||!currentCategory){toast("Verified Store, Category & Employee ID are required.","warning");return false;}
-  if(submissionStatus?.hasSubmitted){toast("This store has already submitted for this category. Cannot save new items.","warning");return false;}
-  const items=scannedProducts.filter(x=>Number(x.Qty)>0&&x.ExpiryDate);
-  if(!items.length){toast("No valid data. Add items with quantity and expiry date.","warning");return false;}
-  for(const p of items){
-    const v=validateExpiryDate(p.ExpiryDate);if(!v.valid){toast(`${p.sku||p.barcode}: ${v.message}`,"error");return false;}
-  }
-  if(requireMinimum){
-    const min=getMinimumQuantity(currentCategory,currentStore.classification||"C");
-    if(uniqueBarcodeCount()<min){
-      toast(`Minimum not met!\nCategory: ${currentCategory}\nClass: ${currentStore.classification||"C"}\nRequired: ${min}\nCurrent: ${uniqueBarcodeCount()}`,"error");
-      return false;
-    }
-  }
-  return true;
-}
-window.saveData=async function(){
-  if(!validateBeforeSave(false))return;
-  const btn=$("saveBtn"),original=btn.innerHTML;btn.disabled=true;
-  try{
-    const payload=submissionPayload("DRAFT");
-    await set(ref(db,draftPath()),payload);
-    $("lastSaveTime").textContent=new Date().toLocaleString();
-    updateDraftCard(payload);
-    toast(`Store draft protected: ${payload.items.length} items saved successfully.`,"success");
-  }catch(e){toast("Save failed: "+e.message,"error");}
-  finally{btn.disabled=false;btn.innerHTML=original;}
-};
 
-window.submitData=async function(){
-  if(!validateBeforeSave(true))return;
-  if(!confirm("Are you sure you want to submit? This action cannot be undone."))return;
-  const btn=$("weeklySubmitBtn"),original=btn.innerHTML;btn.disabled=true;btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Submitting...';
-  try{
-    const path=submissionPath();
-    const payload=submissionPayload("SUBMITTED");
-    // Transaction enforces one final submission per Store + Category + Cycle.
-    const result=await runTransaction(ref(db,path),current=>{
-      if(current!==null)return;
-      return payload;
+
+/* =========================================================
+   RENDER EXPIRY TABLE
+   ========================================================= */
+
+function renderExpiryTable() {
+
+  const tbody =
+    $("dataTableBody") ||
+    $("dataTable")?.querySelector("tbody");
+
+  if (!tbody) return;
+
+
+  tbody.innerHTML = "";
+
+
+  scannedProducts.forEach(
+    (item, index) => {
+
+      const tr =
+        document.createElement("tr");
+
+
+      tr.innerHTML = `
+
+        <td>${index + 1}</td>
+
+        <td>
+          ${escapeHtml(item.sku)}
+        </td>
+
+        <td>
+          ${escapeHtml(item.barcode)}
+        </td>
+
+        <td>
+          ${escapeHtml(item.product)}
+        </td>
+
+        <td>
+          <input
+            type="number"
+            min="1"
+            value="${item.Qty || ""}"
+            class="qty-input"
+            data-index="${index}"
+          >
+        </td>
+
+        <td>
+          <input
+            type="text"
+            placeholder="DD/MM/YYYY"
+            value="${escapeHtml(item.ExpiryDate)}"
+            class="expiry-input"
+            data-index="${index}"
+          >
+        </td>
+
+        <td>
+          <button
+            type="button"
+            class="danger-btn"
+            onclick="removeExpiryItem(${index})"
+          >
+            Remove
+          </button>
+        </td>
+      `;
+
+
+      tbody.appendChild(tr);
+    }
+  );
+
+
+  tbody
+    .querySelectorAll(".qty-input")
+    .forEach(input => {
+
+      input.addEventListener(
+        "input",
+        event => {
+
+          const index =
+            Number(
+              event.target.dataset.index
+            );
+
+          scannedProducts[index].Qty =
+            Number(
+              event.target.value || 0
+            );
+
+          updateMinimumRequirement();
+        }
+      );
     });
-    if(!result.committed){toast("This store has already submitted for this category cycle.","error");return;}
-    await remove(ref(db,draftPath())).catch(()=>{});
-    submissionStatus={hasSubmitted:true,category:currentCategory,submittedBy:currentEmployee.employeeId,submissionDate:payload.submittedAt,itemCount:payload.itemCount};
-    updateSubmissionBanner();
-    updateSubmitButton();
-    const csv=buildCsv(payload.items);
-    downloadText(csv,`Expiry_Submission_${currentStore.code}_${currentCategory}_${new Date().toISOString().slice(0,10)}.csv`,"text/csv");
-    scannedProducts=[];renderAllRows();toast("Store submission saved to Firebase successfully.","success");
-  }catch(e){toast("Submission failed: "+e.message,"error");}
-  finally{btn.disabled=false;btn.innerHTML=original;}
-};
 
-window.loadSavedData=async function(){
-  if(!currentStore||!currentCategory)return;
-  try{
-    const data=await read(draftPath());
-    if(data?.items?.length && !submissionStatus?.hasSubmitted){
-      scannedProducts=(data.items||[]).map(x=>({...x,ExpiryDate:normalizeDate(x.ExpiryDate)}));
-      renderAllRows();updateDraftCard(data);
-      toast("Saved draft loaded for this Store + Category.","info");
-    }else{
-      updateDraftCard({items:[],savedQty:0,savedAt:""});
-    }
-  }catch(e){toast("Draft load failed: "+e.message,"error");}
-}
 
-function updateDraftCard(data){
-  const items=data?.items||[];
-  const qty=items.reduce((a,x)=>a+Number(x.Qty||0),0);
-  const value=items.reduce((a,x)=>a+Number(x.Qty||0)*Number(x.cost||0),0);
-  if($("expiryDraftItems"))$("expiryDraftItems").textContent=items.length;
-  if($("expiryDraftQty"))$("expiryDraftQty").textContent=qty;
-  if($("expiryDraftValue"))$("expiryDraftValue").textContent=value.toFixed(2);
-  if($("expiryDraftLastSaved"))$("expiryDraftLastSaved").textContent=data?.savedAt?new Date(data.savedAt).toLocaleString():"—";
-  if($("expiryDraftState"))$("expiryDraftState").textContent=items.length?`Saved safely for Store ${currentStore?.code||""} + ${currentCategory}`:"No saved draft yet for this Store + Category";
-  if($("lastSaveTime")&&data?.savedAt)$("lastSaveTime").textContent=new Date(data.savedAt).toLocaleString();
-}
+  tbody
+    .querySelectorAll(".expiry-input")
+    .forEach(input => {
 
-async function checkSubmissionStatus(){
-  if(!currentStore||!currentCategory)return;
-  try{
-    const data=await read(submissionPath());
-    submissionStatus=data?{hasSubmitted:true,category:currentCategory,submittedBy:data.employeeId,submissionDate:data.submittedAt,itemCount:data.itemCount}: {hasSubmitted:false};
-    updateSubmissionBanner();updateSubmitButton();
-  }catch(e){console.warn(e);}
-}
-function updateSubmissionBanner(){
-  const b=$("submissionStatusBanner");if(!b)return;
-  if(!submissionStatus?.hasSubmitted){b.className="submission-status-banner";return;}
-  b.className="submission-status-banner show submitted";
-  $("submissionStatusIcon").textContent="✓";
-  $("submissionStatusText").textContent=`Already submitted · ${currentCategory}`;
-  $("submissionStatusDetails").textContent=`Items: ${submissionStatus.itemCount||0} · Employee: ${submissionStatus.submittedBy||""}`;
-  $("submissionStatusDate").textContent=submissionStatus.submissionDate?new Date(submissionStatus.submissionDate).toLocaleString():"";
-}
-function updateSubmitButton(){
-  const b=$("weeklySubmitBtn");if(!b)return;
-  b.disabled=!!submissionStatus?.hasSubmitted;
-  b.className=submissionStatus?.hasSubmitted?"btn btn-submit-disabled btn-sm":"btn btn-success btn-sm";
-}
-function buildCsv(items){
-  const headers=["Store Code","Area Manager","Operation Manager","Category","SKU","Barcode","UOM","Description","Cost","Supplier","Vendor Code","NonReturnable","Qty","Total Cost","Expiry Date","Days Left","Status"];
-  const esc=v=>{const s=String(v??"");return /[",\n\r]/.test(s)?`"${s.replaceAll('"','""')}"`:s;};
-  const rows=[headers.map(esc).join(",")];
-  items.forEach(p=>rows.push([
-    currentStore.code,currentStore.areaManager,currentStore.operationManager,currentCategory,p.sku,p.barcode,p.uom,p.description,p.cost,p.supplier,p.vendorCode,p.nonReturnable,p.Qty,p.TotalCost,p.ExpiryDate,p.DaysLeft,p.Status
-  ].map(esc).join(",")));
-  return rows.join("\r\n");
-}
-function downloadText(text,name,type){
-  const blob=new Blob([text],{type});
-  const url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
-}
-window.printReport=function(){window.print();};
+      input.addEventListener(
+        "change",
+        event => {
 
-/* ---------- Paste setting ---------- */
+          const index =
+            Number(
+              event.target.dataset.index
+            );
 
-function applyBarcodePasteBehavior(){
-  const input=$("barcodeInput");if(!input)return;
-  input.placeholder=pasteAllowed?"Scan Barcode (paste allowed)":"Scan Barcode (paste disabled)";
-  if($("pasteStatusText"))$("pasteStatusText").textContent=pasteAllowed?"Barcode paste is allowed":"Barcode paste is disabled by Admin";
-}
-$("barcodeInput")?.addEventListener("keydown",e=>{
-  if(e.key==="Enter"){e.preventDefault();handleScan(e.currentTarget.value);e.currentTarget.value="";}
-});
-$("barcodeInput")?.addEventListener("change",e=>{
-  if(e.target.value.trim()){handleScan(e.target.value);e.target.value="";}
-});
-
-/* ---------- Admin authentication ---------- */
-
-window.openAdminLogin=function(){
-  const email=prompt("Admin Email:",ADMIN_BOOTSTRAP_EMAIL);
-  if(email===null)return;
-  const password=prompt("Admin Password:");
-  if(password===null)return;
-  adminLogin(email,password);
-};
-
-async function adminLogin(email,password){
-  try{
-    const cred=await signInWithEmailAndPassword(auth,email.trim(),password);
-    adminUser=cred.user;
-    if(norm(email)!==norm(ADMIN_BOOTSTRAP_EMAIL)){
-      const adminFlag=await read(`admins/${cred.user.uid}`);
-      if(adminFlag!==true){await signOut(auth);await signInAnonymously(auth);throw new Error("This Firebase user is not an authorized admin.");}
-    }else{
-      // Bootstrap only this configured admin email. Rules permit this exact self-registration.
-      await set(ref(db,`admins/${cred.user.uid}`),true);
-    }
-    showOnly("adminPage");
-    loadAdminData();
-    toast("Admin authenticated.","success");
-  }catch(e){
-    toast("Admin authentication failed: "+e.message,"error");
-    try{if(!auth.currentUser?.isAnonymous)await signOut(auth);await signInAnonymously(auth);}catch(_){}
-  }
-}
-window.adminLogout=async function(){
-  adminUser=null;
-  showOnly("landingPage");
-  try{await signOut(auth);}catch(_){}
-  try{await signInAnonymously(auth);}catch(_){}
-};
-
-/* ---------- Admin panel ---------- */
-
-window.openAdminTab=function(tab,btn){
-  document.querySelectorAll(".admin-section").forEach(x=>x.classList.remove("active"));
-  document.querySelectorAll(".admin-tab").forEach(x=>x.classList.remove("active"));
-  const el=$("admin-"+tab);if(el)el.classList.add("active");
-  if(btn)btn.classList.add("active");
-  if(tab==="stores")renderAdminStores();
-  if(tab==="employees")renderAdminEmployees();
-  if(tab==="categories")renderAdminCategories();
-  if(tab==="assignments"){renderAssignmentStores();renderAssignmentChecks();}
-  if(tab==="cycle")renderAdminCycle();
-  if(tab==="minqty")renderAdminMinQty();
-  if(tab==="data")loadAdminDataMaster();
-  if(tab==="settings")loadAdminSettings();
-};
-
-async function loadAdminData(){
-  if(!adminCheck())return;
-  await Promise.all([
-    loadRootMaster("storeMaster"),loadRootMaster("employeeMaster"),loadRootMaster("categories"),
-    loadRootMaster("storeCategories"),loadRootMaster("categoryCycle"),loadRootMaster("minQty")
-  ]);
-  renderAdminStores();renderAdminEmployees();renderAdminCategories();renderAssignmentStores();renderAssignmentChecks();renderAdminCycle();renderAdminMinQty();loadAdminSettings();
-  updateAdminCounts();
-}
-async function loadRootMaster(path){
-  try{
-    const v=await read(path);
-    if(path==="storeMaster")stores=v||{};
-    if(path==="employeeMaster")employees=v||{};
-    if(path==="categories")categories=v||{};
-    if(path==="storeCategories")storeCategories=v||{};
-    if(path==="categoryCycle")categoryCycle=v||{};
-    if(path==="minQty")minQty=v||DEFAULT_MIN_QTY;
-  }catch(e){toast(`Unable to load ${path}: ${e.message}`,"error");}
-}
-function updateAdminCounts(){
-  if($("adminStoreCount"))$("adminStoreCount").textContent=Object.keys(stores).length;
-  if($("adminEmployeeCount"))$("adminEmployeeCount").textContent=Object.keys(employees).length;
-  if($("adminCategoryCount"))$("adminCategoryCount").textContent=Object.keys(categories).length;
-  if($("adminProductCount"))$("adminProductCount").textContent="Index";
-}
-
-/* stores */
-window.saveAdminStore=async function(){
-  if(!adminCheck())return;
-  const code=$("aStoreCode").value.trim();if(!code){toast("Store Code required","warning");return;}
-  const obj={
-    code,name:$("aStoreName").value.trim(),storeName:$("aStoreName").value.trim(),
-    classification:$("aStoreClass").value.trim()||"C",areaManager:$("aStoreAM").value.trim(),
-    operationManager:$("aStoreOM").value.trim(),region:$("aStoreRegion").value.trim(),
-    location:$("aStoreLocation").value.trim(),email:$("aStoreEmail").value.trim(),active:true,updatedAt:new Date().toISOString()
-  };
-  await set(ref(db,`storeMaster/${key(code)}`),obj);clearStoreAdminForm();toast("Store saved.","success");
-};
-window.editAdminStore=function(code){
-  const s=findStore(code);if(!s)return;
-  $("aStoreCode").value=s.code;$("aStoreName").value=s.name;$("aStoreClass").value=s.classification;
-  $("aStoreAM").value=s.areaManager;$("aStoreOM").value=s.operationManager;$("aStoreRegion").value=s.region;
-  $("aStoreLocation").value=s.location;$("aStoreEmail").value=s.email;
-};
-window.deleteAdminStore=async function(code){if(!adminCheck())return;if(!confirm(`Delete Store ${code}?`))return;await remove(ref(db,`storeMaster/${key(code)}`));await remove(ref(db,`storeCategories/${key(code)}`));};
-window.clearStoreAdminForm=function(){["aStoreCode","aStoreName","aStoreClass","aStoreAM","aStoreOM","aStoreRegion","aStoreLocation","aStoreEmail"].forEach(id=>$(id).value="");}
-function renderAdminStores(){
-  const b=$("adminStoresBody");if(!b)return;b.innerHTML="";
-  Object.keys(stores).sort().forEach(code=>{
-    const s=findStore(code),tr=document.createElement("tr");
-    tr.innerHTML=`<td>${escapeHtml(s.code)}</td><td>${escapeHtml(s.name)}</td><td>${escapeHtml(s.areaManager)}</td><td>${escapeHtml(s.operationManager)}</td><td>${escapeHtml(s.classification)}</td><td><button class="btn btn-primary btn-xs" onclick="editAdminStore('${safeJs(s.code)}')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteAdminStore('${safeJs(s.code)}')">Delete</button></td>`;
-    b.appendChild(tr);
-  });
-}
-
-/* employees */
-window.saveAdminEmployee=async function(){
-  if(!adminCheck())return;
-  const id=$("aEmpId").value.trim();if(!id){toast("Employee ID required","warning");return;}
-  const obj={employeeId:id,employeeName:$("aEmpName").value.trim(),status:$("aEmpStatus").value.trim()||"Active",storeCode:$("aEmpStore").value.trim(),designation:$("aEmpDesignation").value.trim(),updatedAt:new Date().toISOString()};
-  await set(ref(db,`employeeMaster/${key(id)}`),obj);clearEmpForm();toast("Employee saved.","success");
-};
-window.editAdminEmployee=function(id){
-  const e=findEmployee(id);if(!e)return;
-  $("aEmpId").value=e.employeeId;$("aEmpName").value=e.employeeName;$("aEmpStatus").value=e.status;$("aEmpStore").value=e.storeCode;$("aEmpDesignation").value=e.designation;
-};
-window.deleteAdminEmployee=async function(id){if(!adminCheck())return;if(!confirm("Delete employee?"))return;await remove(ref(db,`employeeMaster/${key(id)}`));};
-window.clearEmpForm=function(){["aEmpId","aEmpName","aEmpStatus","aEmpStore","aEmpDesignation"].forEach(id=>$(id).value="");}
-function renderAdminEmployees(){
-  const b=$("adminEmployeesBody");if(!b)return;b.innerHTML="";
-  Object.keys(employees).sort().forEach(id=>{
-    const e=findEmployee(id),tr=document.createElement("tr");
-    tr.innerHTML=`<td>${escapeHtml(e.employeeId)}</td><td>${escapeHtml(e.employeeName)}</td><td>${escapeHtml(e.status)}</td><td>${escapeHtml(e.storeCode)}</td><td>${escapeHtml(e.designation)}</td><td><button class="btn btn-primary btn-xs" onclick="editAdminEmployee('${safeJs(e.employeeId)}')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteAdminEmployee('${safeJs(e.employeeId)}')">Delete</button></td>`;
-    b.appendChild(tr);
-  });
-}
-
-/* categories */
-window.saveAdminCategory=async function(){
-  if(!adminCheck())return;
-  const name=$("aCategoryName").value.trim();if(!name){toast("Category name required","warning");return;}
-  const k=key(name);
-  await set(ref(db,`categories/${k}`),{name,active:true,updatedAt:new Date().toISOString()});
-  $("aCategoryName").value="";toast("Category saved.","success");
-};
-
-window.renameAdminCategory=async function(k){
-  if(!adminCheck())return;
-  const c=categories[k]||{}, oldName=typeof c==="string"?c:c.name||k;
-  const name=prompt("New category name:",oldName);
-  if(!name||!name.trim()||norm(name)===norm(oldName))return;
-  const newKey=key(name);
-  await set(ref(db,`categories/${newKey}`),{...(typeof c==="object"?c:{}),name:name.trim(),active:true,updatedAt:new Date().toISOString()});
-  await remove(ref(db,`categories/${k}`));
-  // Migrate store assignments.
-  const updates={};
-  Object.entries(storeCategories||{}).forEach(([store,assigned])=>{
-    if(assigned?.[k]===true){
-      updates[`storeCategories/${store}/${newKey}`]=true;
-      updates[`storeCategories/${store}/${k}`]=null;
-    }
-  });
-  if(Object.keys(updates).length)await update(ref(db),updates);
-  // Migrate cycle category labels.
-  const cycUpdates={};
-  Object.entries(categoryCycle||{}).forEach(([id,cx])=>{
-    if(norm(cx?.category)===norm(oldName))cycUpdates[`categoryCycle/${id}/category`]=name.trim();
-  });
-  if(Object.keys(cycUpdates).length)await update(ref(db),cycUpdates);
-  toast("Category renamed and assignments migrated.","success");
-};
-
-window.deleteAdminCategory=async function(k){if(!adminCheck())return;if(!confirm("Delete category?"))return;await remove(ref(db,`categories/${k}`));};
-function renderAdminCategories(){
-  const b=$("adminCategoriesBody");if(!b)return;b.innerHTML="";
-  Object.keys(categories).sort().forEach(k=>{
-    const c=categories[k]||{},name=typeof c==="string"?c:c.name||k,active=typeof c==="string"||c.active!==false;
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${escapeHtml(k)}</td><td>${escapeHtml(name)}</td><td>${active?"Active":"Inactive"}</td><td><button class="btn btn-danger btn-xs" onclick="deleteAdminCategory('${safeJs(k)}')">Delete</button></td>`;
-    b.appendChild(tr);
-  });
-}
-
-/* assignments */
-function renderAssignmentStores(){
-  const s=$("assignmentStore");if(!s)return;
-  const old=s.value;s.innerHTML='<option value="">Select Store</option>';
-  Object.keys(stores).sort().forEach(code=>{const st=findStore(code);s.add(new Option(`${st.code} - ${st.name}`,st.code));});
-  if(old)s.value=old;
-}
-window.renderAssignmentChecks=function(){
-  const box=$("assignmentChecks"),store=$("assignmentStore")?.value;if(!box)return;
-  box.innerHTML=store?"":"Select Store";
-  if(!store)return;
-  const assigned=storeCategories[store]||{};
-  Object.keys(categories).sort().forEach(k=>{
-    const c=categories[k]||{},name=typeof c==="string"?c:c.name||k;
-    if(typeof c!=="string"&&c.active===false)return;
-    const checked=assigned[k]===true||assigned[name]===true;
-    const row=document.createElement("label");row.className="check-row";
-    row.innerHTML=`<input type="checkbox" value="${escapeHtml(k)}" ${checked?"checked":""}> <span>${escapeHtml(name)}</span>`;
-    box.appendChild(row);
-  });
-};
-window.saveStoreAssignments=async function(){
-  if(!adminCheck())return;
-  const store=$("assignmentStore").value;if(!store){toast("Select Store","warning");return;}
-  const out={};document.querySelectorAll("#assignmentChecks input:checked").forEach(x=>out[x.value]=true);
-  await set(ref(db,`storeCategories/${key(store)}`),out);toast("Store category assignment saved.","success");
-};
-
-/* category cycle */
-window.addCycleRow=function(){
-  const tbody=$("cycleBody"),tr=document.createElement("tr");
-  tr.innerHTML=`<td><input class="cycle-sno" value="${tbody.children.length+1}"></td><td><select class="cycle-cat">${categoryOptions()}</select></td><td><input class="cycle-start" type="date"></td><td><input class="cycle-end" type="date"></td><td><button class="btn btn-danger btn-xs" onclick="this.closest('tr').remove()">Delete</button></td>`;
-  tbody.appendChild(tr);
-};
-function categoryOptions(){
-  return `<option value="">Select</option>`+Object.entries(categories).map(([k,v])=>`<option value="${escapeHtml(typeof v==="string"?v:v.name||k)}">${escapeHtml(typeof v==="string"?v:v.name||k)}</option>`).join("");
-}
-function renderAdminCycle(){
-  const b=$("cycleBody");if(!b)return;b.innerHTML="";
-  cycleEntries().sort((a,b)=>String(a.start).localeCompare(String(b.start))).forEach((c,i)=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td><input class="cycle-sno" value="${escapeHtml(c.sno||i+1)}"></td><td><select class="cycle-cat">${categoryOptions()}</select></td><td><input class="cycle-start" type="date" value="${escapeHtml(c.start||"")}"></td><td><input class="cycle-end" type="date" value="${escapeHtml(c.end||"")}"></td><td><button class="btn btn-danger btn-xs" onclick="this.closest('tr').remove()">Delete</button></td>`;
-    b.appendChild(tr);tr.querySelector(".cycle-cat").value=c.category||"";
-  });
-}
-window.saveCycle=async function(){
-  if(!adminCheck())return;
-  const out={};[...document.querySelectorAll("#cycleBody tr")].forEach((tr,i)=>{
-    const category=tr.querySelector(".cycle-cat").value,start=tr.querySelector(".cycle-start").value,end=tr.querySelector(".cycle-end").value;
-    if(category&&start&&end)out["cycle_"+String(i+1).padStart(3,"0")]={sno:tr.querySelector(".cycle-sno").value||String(i+1),category,start,end,updatedAt:new Date().toISOString()};
-  });
-  await set(ref(db,"categoryCycle"),out);toast("Category cycle saved.","success");
-};
-
-/* min qty */
-function renderAdminMinQty(){
-  const b=$("minQtyBody");if(!b)return;b.innerHTML="";
-  const req=minQty&&Object.keys(minQty).length?minQty:DEFAULT_MIN_QTY;
-  Object.entries(req).forEach(([cat,vals])=>{
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${escapeHtml(cat)}</td>`+["A","B","C","D","Z","HR","MT","X"].map(c=>`<td><input class="minq" data-cat="${escapeHtml(cat)}" data-cls="${c}" type="number" min="0" value="${Number(vals?.[c]??0)}"></td>`).join("")+`<td><button class="btn btn-danger btn-xs" onclick="deleteMinQty('${safeJs(cat)}')">Delete</button></td>`;
-    b.appendChild(tr);
-  });
-}
-window.addMinQtyRow=function(){
-  const name=prompt("Category name:");if(!name)return;
-  if(!minQty)minQty={};minQty[name]={A:0,B:0,C:0,D:0,Z:0,HR:0,MT:0,X:0};renderAdminMinQty();
-};
-window.deleteMinQty=function(cat){if(confirm(`Delete ${cat}?`)){delete minQty[cat];renderAdminMinQty();}};
-window.saveMinQty=async function(){
-  if(!adminCheck())return;
-  const out={};document.querySelectorAll("#minQtyBody tr").forEach(tr=>{
-    const cat=tr.querySelector(".minq")?.dataset.cat;if(!cat)return;
-    out[cat]=out[cat]||{};
-    tr.querySelectorAll(".minq").forEach(x=>out[cat][x.dataset.cls]=Math.max(0,Number(x.value)||0));
-  });
-  await set(ref(db,"minQty"),out);minQty=out;toast("Minimum quantity requirements saved.","success");
-};
-
-/* data master + index */
-let adminProducts={};
-let adminDataHeaders=[];
-async function loadAdminDataMaster(){
-  if(!adminCheck())return;
-  try{
-    const raw=await read("Data");
-    adminDataHeaders=Array.isArray(raw?.headers)?raw.headers:[];
-    adminProducts=normalizeFirebaseData(raw||{});
-    renderAdminData();
-  }catch(e){toast("Data master load failed: "+e.message,"error");}
-}
-function normalizeFirebaseData(data){
-  const headers=Array.isArray(data?.headers)?data.headers:[];
-  const out={};
-  const add=(id,row,sourcePath)=>{
-    if(!row)return;
-    let p;
-    if(Array.isArray(row)){
-      p={};headers.forEach((h,i)=>p[String(h)]=row[i]);
-      p._isArray=true;
-    }else p={...row};
-    if(!(p.SKU||p.sku||p.Barcodes||p.Barcode))return;
-    p._id=String(id);p._sourcePath=sourcePath;
-    out[p._id]=normalizeProduct(p);
-  };
-  if(data?.items&&typeof data.items==="object")Object.entries(data.items).forEach(([id,row])=>add(id,row,`Data/items/${id}`));
-  Object.entries(data).forEach(([id,row])=>{
-    if(id==="headers"||id==="items")return;
-    add(id,row,`Data/${id}`);
-  });
-  return out;
-}
-window.filterAdminData=function(){renderAdminData();};
-function renderAdminData(){
-  const b=$("adminDataBody");if(!b)return;b.innerHTML="";
-  const q=norm($("adminDataSearch")?.value);
-  let n=0;
-  Object.values(adminProducts).forEach(p=>{
-    if(n>=500)return;
-    if(q&&!`${p.sku} ${p.barcode} ${p.description} ${p.category}`.toLowerCase().includes(q))return;
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${escapeHtml(p.sku)}</td><td>${escapeHtml(p.barcode)}</td><td>${escapeHtml(p.description)}</td><td>${escapeHtml(p.uom)}</td><td>${Number(p.cost||0).toFixed(2)}</td><td>${escapeHtml(p.supplier)}</td><td>${escapeHtml(p.vendorCode)}</td><td>${escapeHtml(p.category)}</td><td><button class="btn btn-primary btn-xs" onclick="editAdminProduct('${safeJs(p._id)}')">Edit</button> <button class="btn btn-danger btn-xs" onclick="deleteAdminProduct('${safeJs(p._id)}')">Delete</button></td>`;
-    b.appendChild(tr);n++;
-  });
-}
-window.editAdminProduct=function(id){
-  const p=adminProducts[id];if(!p)return;
-  $("dId").value=p._id;$("dSku").value=p.sku;$("dBarcode").value=p.barcode;$("dUom").value=p.uom;$("dDesc").value=p.description;$("dCost").value=p.cost;$("dSupplier").value=p.supplier;$("dVendor").value=p.vendorCode;$("dCategory").value=p.category;$("dReturnable").value=p.nonReturnable;
-};
-window.saveAdminProduct=async function(){
-  if(!adminCheck())return;
-  const sku=$("dSku").value.trim();if(!sku){toast("SKU required","warning");return;}
-  const id=$("dId").value.trim()||key(sku);
-  const product={
-    SKU:sku,
-    Barcodes:$("dBarcode").value.trim(),
-    UOM:$("dUom").value.trim()||"PCS",
-    "EN Desc":$("dDesc").value.trim(),
-    Cost:Number($("dCost").value)||0,
-    "Default Supplier":$("dSupplier").value.trim(),
-    "Vendor Code":$("dVendor").value.trim(),
-    Category:$("dCategory").value.trim(),
-    "Non - Returnable & Returnable":$("dReturnable").value.trim()||"No",
-    Qty:0,
-    "Total Cost":0,
-    "Expiry Date":"",
-    "Days Left":"",
-    updatedAt:new Date().toISOString()
-  };
-  let path=`Data/items/${id}`;
-  if(adminProducts[id]?._sourcePath)path=adminProducts[id]._sourcePath;
-  let writeValue=product;
-  if(adminProducts[id]?._isArray && adminDataHeaders.length){
-    writeValue=adminDataHeaders.map(h=>{
-      const v=String(h||"");
-      const map={
-        "SKU":product.SKU,"Barcodes":product.Barcodes,"UOM":product.UOM,
-        "EN Desc":product["EN Desc"],"Cost":product.Cost,
-        "Default Supplier":product["Default Supplier"],"Vendor Code":product["Vendor Code"],
-        "Category":product.Category,"Non - Returnable & Returnable":product["Non - Returnable & Returnable"],
-        "Qty":product.Qty,"Total Cost":product["Total Cost"],"Expiry Date":product["Expiry Date"],"Days Left":product["Days Left"]
-      };
-      return map[v]!==undefined?map[v]:"";
+          scannedProducts[index].ExpiryDate =
+            event.target.value.trim();
+        }
+      );
     });
-  }
-  await set(ref(db,path),writeValue);
-  await updateDataLookup(normalizeProduct({...product,dataId:id,sourcePath:path}),id,path);
-  clearDataForm();await loadAdminDataMaster();toast("Firebase Data item saved and lookup updated.","success");
-};
-window.deleteAdminProduct=async function(id){
-  if(!adminCheck())return;const p=adminProducts[id];if(!p)return;if(!confirm("Delete this item?"))return;
-  if(p._sourcePath)await remove(ref(db,p._sourcePath));
-  await remove(ref(db,`dataLookup/bySku/${lookupKey(p.sku)}`));
-  for(const b of String(p.barcode||"").split(/[,;|\/]+/).map(x=>x.trim()).filter(Boolean))await remove(ref(db,`dataLookup/byBarcode/${lookupKey(b)}`));
-  await loadAdminDataMaster();
-};
-window.clearDataForm=function(){["dId","dSku","dBarcode","dUom","dDesc","dCost","dSupplier","dVendor","dCategory","dReturnable"].forEach(id=>$(id).value="");}
-async function updateDataLookup(p,id,sourcePath){
-  const base={...p,dataId:id,sourcePath};
-  const writes={};
-  if(p.sku)writes[`dataLookup/bySku/${lookupKey(p.sku)}`]=base;
-  String(p.barcode||"").split(/[,;|\/]+/).map(x=>x.trim()).filter(Boolean).forEach(b=>writes[`dataLookup/byBarcode/${lookupKey(b)}`]=base);
-  await update(ref(db),writes);
 }
-window.buildDataIndex=async function(){
-  if(!adminCheck())return;
-  if(!confirm("Build Firebase barcode/SKU lookup from the current /Data master? This reads the existing Firebase Data once and creates lookup entries."))return;
-  const raw=await read("Data"), items=normalizeFirebaseData(raw||{});
-  let writes={}, count=0, paths=0;
-  async function flush(){
-    if(!paths)return;
-    await update(ref(db),writes);
-    writes={};paths=0;
-  }
-  for(const p of Object.values(items)){
-    const base={...p};delete base._id;delete base._sourcePath;
-    if(p.sku){writes[`dataLookup/bySku/${lookupKey(p.sku)}`]=base;paths++;}
-    String(p.barcode||"").split(/[,;|\/]+/).map(x=>x.trim()).filter(Boolean).forEach(b=>{
-      writes[`dataLookup/byBarcode/${lookupKey(b)}`]=base;paths++;
-    });
-    count++;
-    if(paths>=1000)await flush();
-  }
-  await flush();
-  toast(`Lookup built for ${count} Data items.`,"success");
+
+
+/* =========================================================
+   REMOVE ITEM
+   ========================================================= */
+
+window.removeExpiryItem = function(index) {
+
+  scannedProducts.splice(
+    index,
+    1
+  );
+
+  renderExpiryTable();
+
+  updateMinimumRequirement();
 };
 
-/* settings */
-async function loadAdminSettings(){
-  const v=await read("settings/barcodePasteAllowed");
-  pasteAllowed=v===null?true:v!==false;
-  if($("pasteToggle"))$("pasteToggle").checked=pasteAllowed;
+
+/* =========================================================
+   MINIMUM SKU REQUIREMENT
+   ========================================================= */
+
+function getStoreClassification() {
+
+  return (
+    currentStore?.classification ||
+    currentStore?.storeType ||
+    "B"
+  );
 }
-window.savePasteSetting=async function(){
-  if(!adminCheck())return;
-  const v=$("pasteToggle").checked;await set(ref(db,"settings/barcodePasteAllowed"),v);pasteAllowed=v;applyBarcodePasteBehavior();toast("Barcode paste setting saved.","success");
+
+
+function getMinimumQty() {
+
+  const category =
+    currentCategory;
+
+
+  const classification =
+    getStoreClassification();
+
+
+  const custom =
+    minQty?.[key(category)];
+
+
+  if (
+    custom &&
+    custom[classification] != null
+  ) {
+    return Number(
+      custom[classification]
+    );
+  }
+
+
+  return Number(
+    DEFAULT_MIN_QTY?.[category]?.[
+      classification
+    ] || 0
+  );
+}
+
+
+function getValidUniqueSkuCount() {
+
+  const unique =
+    new Set();
+
+
+  scannedProducts.forEach(item => {
+
+    if (
+      Number(item.Qty) > 0 &&
+      item.ExpiryDate
+    ) {
+
+      unique.add(
+        norm(
+          item.sku ||
+          item.barcode
+        )
+      );
+    }
+
+  });
+
+
+  return unique.size;
+}
+
+
+function updateMinimumRequirement() {
+
+  const required =
+    getMinimumQty();
+
+  const count =
+    getValidUniqueSkuCount();
+
+
+  const el =
+    $("minimumRequirement");
+
+
+  if (el) {
+
+    el.textContent =
+      `Minimum required: ${required} SKU(s) | Current: ${count}`;
+  }
+
+
+  const submit =
+    $("weeklySubmitBtn");
+
+
+  if (submit) {
+
+    submit.disabled =
+      !currentCategory ||
+      count < required;
+  }
+}
+
+
+/* =========================================================
+   SAVE DRAFT
+   ========================================================= */
+
+async function saveDraft() {
+
+  try {
+
+    if (!currentStore) {
+
+      toast(
+        "Please login first.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    if (!currentCategory) {
+
+      toast(
+        "Please select a category.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const cycle =
+      currentCycle;
+
+
+    if (!cycle) {
+
+      toast(
+        "No active category cycle found.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const draft = {
+
+      storeCode:
+        currentStore.code,
+
+      storeName:
+        currentStore.name || "",
+
+      employeeId:
+        currentEmployee?.employeeId || "",
+
+      employeeName:
+        currentEmployee?.employeeName || "",
+
+      category:
+        currentCategory,
+
+      cycleId:
+        cycleKey(cycle),
+
+      items:
+        scannedProducts,
+
+      status:
+        "DRAFT",
+
+      updatedAt:
+        Date.now()
+    };
+
+
+    await set(
+      ref(
+        db,
+        `expiryDrafts/${key(currentStore.code)}/${key(cycleKey(cycle))}/${key(currentCategory)}`
+      ),
+      draft
+    );
+
+
+    toast(
+      "Draft saved successfully.",
+      "success"
+    );
+
+
+    loadDraft();
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      error.message ||
+      "Unable to save draft.",
+      "error"
+    );
+  }
+}
+
+
+/* =========================================================
+   LOAD DRAFT
+   ========================================================= */
+
+async function loadDraft() {
+
+  if (
+    !currentStore ||
+    !currentCategory ||
+    !currentCycle
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const snapshot =
+      await get(
+        ref(
+          db,
+          `expiryDrafts/${key(currentStore.code)}/${key(cycleKey(currentCycle))}/${key(currentCategory)}`
+        )
+      );
+
+
+    if (!snapshot.exists()) {
+      return;
+    }
+
+
+    const draft =
+      snapshot.val();
+
+
+    scannedProducts =
+      Array.isArray(draft.items)
+        ? draft.items
+        : Object.values(
+            draft.items || {}
+          );
+
+
+    renderExpiryTable();
+
+    updateMinimumRequirement();
+
+
+    toast(
+      "Saved draft loaded.",
+      "success"
+    );
+
+  } catch (error) {
+
+    console.error(error);
+  }
+}
+
+
+/* =========================================================
+   FINAL SUBMISSION
+   ========================================================= */
+
+async function submitWeeklyExpiry() {
+
+  try {
+
+    if (!currentStore) {
+
+      toast(
+        "Please login first.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    if (!currentCategory) {
+
+      toast(
+        "Please select a category.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    if (!currentCycle) {
+
+      toast(
+        "No active category cycle.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const validItems =
+      scannedProducts.filter(item =>
+        Number(item.Qty) > 0 &&
+        item.ExpiryDate
+      );
+
+
+    const required =
+      getMinimumQty();
+
+
+    const unique =
+      new Set(
+        validItems.map(
+          item =>
+            norm(
+              item.sku ||
+              item.barcode
+            )
+        )
+      );
+
+
+    if (
+      unique.size <
+      required
+    ) {
+
+      toast(
+        `Minimum ${required} unique SKU(s) required.`,
+        "error"
+      );
+
+      return;
+    }
+
+
+    for (
+      const item of validItems
+    ) {
+
+      const validation =
+        validateExpiryDate(
+          item.ExpiryDate
+        );
+
+
+      if (!validation.ok) {
+
+        toast(
+          `${item.sku}: ${validation.message}`,
+          "error"
+        );
+
+        return;
+      }
+    }
+
+
+    const submissionPath =
+      `storeSubmissions/${key(currentStore.code)}/${key(currentCategory)}/${key(cycleKey(currentCycle))}`;
+
+
+    const payload = {
+
+      storeCode:
+        currentStore.code,
+
+      storeName:
+        currentStore.name || "",
+
+      employeeId:
+        currentEmployee?.employeeId || "",
+
+      employeeName:
+        currentEmployee?.employeeName || "",
+
+      category:
+        currentCategory,
+
+      cycleId:
+        cycleKey(currentCycle),
+
+      items:
+        validItems.map(item => ({
+          sku:
+            item.sku || "",
+
+          barcode:
+            item.barcode || "",
+
+          product:
+            item.product || "",
+
+          categoryKey:
+            key(currentCategory),
+
+          Qty:
+            Number(item.Qty),
+
+          ExpiryDate:
+            item.ExpiryDate,
+
+          UOM:
+            item.UOM || "",
+
+          Cost:
+            Number(item.Cost || 0)
+        })),
+
+      status:
+        "SUBMITTED",
+
+      itemCount:
+        unique.size,
+
+      submittedAt:
+        Date.now()
+    };
+
+
+    const result =
+      await runTransaction(
+        ref(
+          db,
+          submissionPath
+        ),
+        current => {
+
+          if (
+            current !== null
+          ) {
+
+            return;
+          }
+
+          return payload;
+        }
+      );
+
+
+    if (!result.committed) {
+
+      toast(
+        "This category has already been submitted.",
+        "warning"
+      );
+
+      return;
+    }
+
+
+    await remove(
+      ref(
+        db,
+        `expiryDrafts/${key(currentStore.code)}/${key(cycleKey(currentCycle))}/${key(currentCategory)}`
+      )
+    );
+
+
+    submissionStatus =
+      payload;
+
+
+    toast(
+      "Submission completed successfully.",
+      "success"
+    );
+
+
+    downloadSubmissionCSV(
+      payload
+    );
+
+
+    scannedProducts = [];
+
+    renderExpiryTable();
+
+    updateMinimumRequirement();
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      error.message ||
+      "Submission failed.",
+      "error"
+    );
+  }
+}
+
+
+/* =========================================================
+   CSV DOWNLOAD
+   ========================================================= */
+
+function downloadSubmissionCSV(
+  submission
+) {
+
+  const rows = [
+
+    [
+      "Store Code",
+      "Store Name",
+      "Employee ID",
+      "Employee Name",
+      "Category",
+      "SKU",
+      "Barcode",
+      "Product",
+      "Qty",
+      "Expiry Date",
+      "UOM",
+      "Cost"
+    ]
+
+  ];
+
+
+  submission.items.forEach(
+    item => {
+
+      rows.push([
+
+        submission.storeCode,
+
+        submission.storeName,
+
+        submission.employeeId,
+
+        submission.employeeName,
+
+        submission.category,
+
+        item.sku,
+
+        item.barcode,
+
+        item.product,
+
+        item.Qty,
+
+        item.ExpiryDate,
+
+        item.UOM,
+
+        item.Cost
+
+      ]);
+
+    }
+  );
+
+
+  const csv =
+    rows
+      .map(row =>
+        row
+          .map(value =>
+            `"${String(value ?? "")
+              .replaceAll('"', '""')}"`
+          )
+          .join(",")
+      )
+      .join("\n");
+
+
+  const blob =
+    new Blob(
+      [csv],
+      {
+        type:
+          "text/csv;charset=utf-8;"
+      }
+    );
+
+
+  const url =
+    URL.createObjectURL(blob);
+
+
+  const a =
+    document.createElement("a");
+
+
+  a.href = url;
+
+  a.download =
+    `Expiry_${submission.storeCode}_${submission.category}_${Date.now()}.csv`;
+
+  a.click();
+
+
+  URL.revokeObjectURL(url);
+}
+
+
+/* =========================================================
+   EVENT BINDINGS
+   ========================================================= */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    startRealtimeListeners();
+
+
+    const verifyBtn =
+      $("verifyStoreBtn");
+
+    if (verifyBtn) {
+
+      verifyBtn.addEventListener(
+        "click",
+        verifyStoreLogin
+      );
+    }
+
+
+    const loginBtn =
+      $("weeklyLoginBtn");
+
+    if (loginBtn) {
+
+      loginBtn.addEventListener(
+        "click",
+        loginWeeklyExpiry
+      );
+    }
+
+
+    const category =
+      $("categoryDropdown");
+
+    if (category) {
+
+      category.addEventListener(
+        "change",
+        categoryChanged
+      );
+    }
+
+
+    const barcode =
+      $("barcodeInput");
+
+    if (barcode) {
+
+      barcode.addEventListener(
+        "keydown",
+        event => {
+
+          if (
+            event.key === "Enter"
+          ) {
+
+            event.preventDefault();
+
+            lookupBarcode();
+          }
+
+        }
+      );
+    }
+
+
+    const save =
+      $("saveBtn");
+
+    if (save) {
+
+      save.addEventListener(
+        "click",
+        saveDraft
+      );
+    }
+
+
+    const submit =
+      $("weeklySubmitBtn");
+
+    if (submit) {
+
+      submit.addEventListener(
+        "click",
+        submitWeeklyExpiry
+      );
+    }
+
+
+    /*
+       THIS IS IMPORTANT FOR GITHUB PAGES.
+       The page must show Home immediately.
+    */
+
+    window.showOnly(
+      "landingPage"
+    );
+
+  }
+);
+
+
+/* =========================================================
+   ADMIN
+   ========================================================= */
+
+window.openAdmin = function () {
+
+  window.showOnly(
+    "adminPage"
+  );
+
+  renderAdminPage();
 };
 
-/* boot keyboard shortcuts */
-document.addEventListener("keydown",e=>{
-  if(e.key==="Escape" && $("weeklyExpiryPage")?.style.display==="block"){}
-});
+
+window.closeAdmin = function () {
+
+  window.showOnly(
+    "landingPage"
+  );
+};
+
+
+async function adminLogin() {
+
+  const email =
+    $("adminEmail")?.value?.trim();
+
+  const password =
+    $("adminPassword")?.value || "";
+
+
+  if (!email || !password) {
+
+    toast(
+      "Enter admin email and password.",
+      "error"
+    );
+
+    return;
+  }
+
+
+  try {
+
+    const credential =
+      await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+
+
+    adminUser =
+      credential.user;
+
+
+    /*
+       Bootstrap administrator.
+    */
+
+    if (
+      norm(email) ===
+      norm(ADMIN_BOOTSTRAP_EMAIL)
+    ) {
+
+      await set(
+        ref(
+          db,
+          `admins/${credential.user.uid}`
+        ),
+        true
+      );
+    }
+
+
+    toast(
+      "Admin login successful.",
+      "success"
+    );
+
+
+    renderAdminPage();
+
+  } catch (error) {
+
+    console.error(error);
+
+    toast(
+      error.message ||
+      "Admin login failed.",
+      "error"
+    );
+  }
+}
+
+
+window.adminLogin =
+  adminLogin;
+
+
+/* =========================================================
+   ADMIN LOGOUT
+   ========================================================= */
+
+window.adminLogout =
+  async function () {
+
+    try {
+
+      await signOut(auth);
+
+      adminUser = null;
+
+      window.showOnly(
+        "landingPage"
+      );
+
+    } catch (error) {
+
+      console.error(error);
+    }
+  };
+
+
+/* =========================================================
+   ADMIN CHECK
+   ========================================================= */
+
+async function isAdmin() {
+
+  const user =
+    auth.currentUser;
+
+
+  if (!user) return false;
+
+
+  if (
+    user.email ===
+    ADMIN_BOOTSTRAP_EMAIL
+  ) {
+    return true;
+  }
+
+
+  const snapshot =
+    await get(
+      ref(
+        db,
+        `admins/${user.uid}`
+      )
+    );
+
+
+  return (
+    snapshot.exists() &&
+    snapshot.val() === true
+  );
+}
+
+
+/* =========================================================
+   ADMIN PAGE
+   ========================================================= */
+
+async function renderAdminPage() {
+
+  const logged =
+    await isAdmin();
+
+
+  const login =
+    $("adminLoginPanel");
+
+  const content =
+    $("adminContent");
+
+
+  if (login) {
+
+    login.style.display =
+      logged ? "none" : "block";
+  }
+
+
+  if (content) {
+
+    content.style.display =
+      logged ? "block" : "none";
+  }
+
+
+  if (!logged) {
+    return;
+  }
+
+
+  renderStoreAdmin();
+  renderEmployeeAdmin();
+  renderCategoryAdmin();
+  renderStoreCategoryAdmin();
+  renderCycleAdmin();
+  renderMinQtyAdmin();
+  renderDataMasterAdmin();
+  renderSettingsAdmin();
+}
+
+
+/* =========================================================
+   STORE ADMIN
+   ========================================================= */
+
+window.addStore =
+  async function () {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    const code =
+      $("adminStoreCode")?.value?.trim();
+
+    const name =
+      $("adminStoreName")?.value?.trim();
+
+
+    if (!code || !name) {
+
+      toast(
+        "Store Code and Store Name are required.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const id =
+      key(code);
+
+
+    await set(
+      ref(
+        db,
+        `storeMaster/${id}`
+      ),
+      {
+
+        code,
+
+        name,
+
+        classification:
+          $("adminStoreClassification")?.value?.trim() || "",
+
+        areaManager:
+          $("adminStoreAreaManager")?.value?.trim() || "",
+
+        region:
+          $("adminStoreRegion")?.value?.trim() || "",
+
+        location:
+          $("adminStoreLocation")?.value?.trim() || "",
+
+        storeType:
+          $("adminStoreType")?.value?.trim() || "",
+
+        email:
+          $("adminStoreEmail")?.value?.trim() || "",
+
+        operationManager:
+          $("adminStoreOperationManager")?.value?.trim() || "",
+
+        promotionStore:
+          $("adminStorePromotion")?.value?.trim() || "",
+
+        updatedAt:
+          Date.now()
+      }
+    );
+
+
+    toast(
+      "Store saved.",
+      "success"
+    );
+  };
+
+
+window.deleteStore =
+  async function (id) {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    if (
+      !confirm(
+        "Delete this store?"
+      )
+    ) {
+      return;
+    }
+
+
+    await remove(
+      ref(
+        db,
+        `storeMaster/${id}`
+      )
+    );
+
+
+    toast(
+      "Store deleted.",
+      "success"
+    );
+  };
+
+
+/* =========================================================
+   EMPLOYEE ADMIN
+   ========================================================= */
+
+window.addEmployee =
+  async function () {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    const employeeId =
+      $("adminEmployeeId")?.value?.trim();
+
+    const employeeName =
+      $("adminEmployeeName")?.value?.trim();
+
+    const status =
+      $("adminEmployeeStatus")?.value ||
+      "Active";
+
+
+    if (
+      !employeeId ||
+      !employeeName
+    ) {
+
+      toast(
+        "Employee ID and name are required.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    await set(
+      ref(
+        db,
+        `employeeMaster/${key(employeeId)}`
+      ),
+      {
+
+        employeeId,
+
+        employeeName,
+
+        status,
+
+        updatedAt:
+          Date.now()
+      }
+    );
+
+
+    toast(
+      "Employee saved.",
+      "success"
+    );
+  };
+
+
+window.deleteEmployee =
+  async function (id) {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    if (
+      !confirm(
+        "Delete employee?"
+      )
+    ) {
+      return;
+    }
+
+
+    await remove(
+      ref(
+        db,
+        `employeeMaster/${id}`
+      )
+    );
+
+
+    toast(
+      "Employee deleted.",
+      "success"
+    );
+  };
+
+
+/* =========================================================
+   CATEGORY ADMIN
+   ========================================================= */
+
+window.addCategory =
+  async function () {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    const name =
+      $("adminCategoryName")?.value?.trim();
+
+
+    if (!name) {
+
+      toast(
+        "Category name is required.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    await set(
+      ref(
+        db,
+        `categories/${key(name)}`
+      ),
+      {
+
+        name,
+
+        active: true,
+
+        createdAt:
+          Date.now()
+      }
+    );
+
+
+    toast(
+      "Category added.",
+      "success"
+    );
+  };
+
+
+window.deleteCategory =
+  async function (id) {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    if (
+      !confirm(
+        "Delete category?"
+      )
+    ) {
+      return;
+    }
+
+
+    await remove(
+      ref(
+        db,
+        `categories/${id}`
+      )
+    );
+
+
+    toast(
+      "Category deleted.",
+      "success"
+    );
+  };
+
+
+/* =========================================================
+   CATEGORY RENAME
+   ========================================================= */
+
+window.renameAdminCategory =
+  async function (
+    oldId,
+    oldName
+  ) {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    const newName =
+      prompt(
+        "Enter new category name:",
+        oldName
+      );
+
+
+    if (!newName) {
+      return;
+    }
+
+
+    const newId =
+      key(newName);
+
+
+    if (
+      newId === oldId
+    ) {
+      return;
+    }
+
+
+    await set(
+      ref(
+        db,
+        `categories/${newId}`
+      ),
+      {
+
+        name: newName,
+
+        active:
+          categories?.[oldId]?.active !== false,
+
+        updatedAt:
+          Date.now()
+      }
+    );
+
+
+    await remove(
+      ref(
+        db,
+        `categories/${oldId}`
+      )
+    );
+
+
+    /*
+       Migrate store category assignments.
+    */
+
+    const updates = {};
+
+
+    Object.entries(
+      storeCategories || {}
+    ).forEach(
+      ([storeCode, assignments]) => {
+
+        if (
+          assignments?.[oldId] === true
+        ) {
+
+          updates[
+            `storeCategories/${storeCode}/${newId}`
+          ] = true;
+
+          updates[
+            `storeCategories/${storeCode}/${oldId}`
+          ] = null;
+        }
+      }
+    );
+
+
+    /*
+       Migrate cycle category names.
+    */
+
+    Object.entries(
+      categoryCycle || {}
+    ).forEach(
+      ([cycleId, cycle]) => {
+
+        if (
+          norm(cycle?.category) ===
+          norm(oldName)
+        ) {
+
+          updates[
+            `categoryCycle/${cycleId}/category`
+          ] = newName;
+        }
+      }
+    );
+
+
+    if (
+      Object.keys(updates).length
+    ) {
+
+      await update(
+        ref(db),
+        updates
+      );
+    }
+
+
+    toast(
+      "Category renamed.",
+      "success"
+    );
+  };
+
+
+/* =========================================================
+   STORE CATEGORY ASSIGNMENT
+   ========================================================= */
+
+window.assignCategoryToStore =
+  async function (
+    storeCode,
+    categoryName,
+    checked
+  ) {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    await set(
+      ref(
+        db,
+        `storeCategories/${key(storeCode)}/${key(categoryName)}`
+      ),
+      !!checked
+    );
+
+
+    toast(
+      checked
+        ? "Category assigned."
+        : "Category removed.",
+      "success"
+    );
+  };
+
+
+/* =========================================================
+   CATEGORY CYCLE ADMIN
+   ========================================================= */
+
+window.addCategoryCycle =
+  async function () {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    const category =
+      $("adminCycleCategory")?.value?.trim();
+
+    const start =
+      $("adminCycleStart")?.value;
+
+    const end =
+      $("adminCycleEnd")?.value;
+
+
+    if (
+      !category ||
+      !start ||
+      !end
+    ) {
+
+      toast(
+        "Category, start and end date are required.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const cycleId =
+      push(
+        ref(
+          db,
+          "categoryCycle"
+        )
+      ).key;
+
+
+    await set(
+      ref(
+        db,
+        `categoryCycle/${cycleId}`
+      ),
+      {
+
+        category,
+
+        start,
+
+        end,
+
+        createdAt:
+          Date.now()
+      }
+    );
+
+
+    toast(
+      "Category cycle saved.",
+      "success"
+    );
+  };
+
+
+window.deleteCategoryCycle =
+  async function (id) {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    await remove(
+      ref(
+        db,
+        `categoryCycle/${id}`
+      )
+    );
+
+
+    toast(
+      "Cycle deleted.",
+      "success"
+    );
+  };
+
+
+/* =========================================================
+   MIN QTY ADMIN
+   ========================================================= */
+
+window.saveMinQty =
+  async function () {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    const category =
+      $("adminMinCategory")?.value?.trim();
+
+
+    if (!category) {
+
+      toast(
+        "Select a category.",
+        "error"
+      );
+
+      return;
+    }
+
+
+    const classifications =
+      [
+        "B",
+        "C",
+        "A",
+        "D",
+        "Z",
+        "HR",
+        "MT",
+        "X"
+      ];
+
+
+    const values = {};
+
+
+    classifications.forEach(
+      classification => {
+
+        const input =
+          document.querySelector(
+            `[data-minqty="${classification}"]`
+          );
+
+
+        values[classification] =
+          Number(
+            input?.value || 0
+          );
+      }
+    );
+
+
+    await set(
+      ref(
+        db,
+        `minQty/${key(category)}`
+      ),
+      values
+    );
+
+
+    toast(
+      "Minimum quantities saved.",
+      "success"
+    );
+  };
+
+
+/* =========================================================
+   BARCODE PASTE SETTING
+   ========================================================= */
+
+window.saveBarcodeSetting =
+  async function () {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    const checkbox =
+      $("adminBarcodePasteAllowed");
+
+
+    await set(
+      ref(
+        db,
+        "settings/barcodePasteAllowed"
+      ),
+      !!checkbox?.checked
+    );
+
+
+    toast(
+      "Barcode setting saved.",
+      "success"
+    );
+  };
+
+
+/* =========================================================
+   DATA MASTER
+   ========================================================= */
+
+async function readDataMaster() {
+
+  const snapshot =
+    await get(
+      ref(db, "Data")
+    );
+
+
+  if (!snapshot.exists()) {
+    return {};
+  }
+
+
+  return snapshot.val();
+}
+
+
+function dataMasterRows(data) {
+
+  if (!data) return [];
+
+
+  const headers =
+    Array.isArray(data.headers)
+      ? data.headers
+      : [];
+
+
+  const rows = [];
+
+
+  Object.entries(data)
+    .forEach(
+      ([id, value]) => {
+
+        if (
+          id === "headers" ||
+          id === "items"
+        ) {
+          return;
+        }
+
+
+        if (Array.isArray(value)) {
+
+          const item = {};
+
+          headers.forEach(
+            (header, index) => {
+
+              item[header] =
+                value[index] ?? "";
+            }
+          );
+
+
+          item._id =
+            id;
+
+          item._sourcePath =
+            `Data/${id}`;
+
+          item._isArray =
+            true;
+
+
+          rows.push(item);
+        }
+      }
+    );
+
+
+  if (data.items) {
+
+    Object.entries(
+      data.items
+    ).forEach(
+      ([id, item]) => {
+
+        rows.push({
+
+          ...(item || {}),
+
+          _id:
+            id,
+
+          _sourcePath:
+            `Data/items/${id}`,
+
+          _isArray:
+            false
+
+        });
+
+      }
+    );
+  }
+
+
+  return rows;
+}
+
+
+/* =========================================================
+   BUILD LOOKUP INDEX
+   ========================================================= */
+
+window.buildDataIndex =
+  async function () {
+
+    if (!(await isAdmin())) {
+      return;
+    }
+
+
+    try {
+
+      const data =
+        await readDataMaster();
+
+
+      const rows =
+        dataMasterRows(data);
+
+
+      if (!rows.length) {
+
+        toast(
+          "No Data Master records found.",
+          "warning"
+        );
+
+        return;
+      }
+
+
+      const updates = {};
+
+
+      rows.forEach(
+        product => {
+
+          const barcodeValues =
+            String(
+              product.Barcodes || ""
+            )
+              .split(/[;,|]/)
+              .map(v => v.trim())
+              .filter(Boolean);
+
+
+          barcodeValues.forEach(
+            barcode => {
+
+              updates[
+                `dataLookup/byBarcode/${key(barcode)}`
+              ] = product;
+            }
+          );
+
+
+          if (product.SKU) {
+
+            updates[
+              `dataLookup/bySku/${key(product.SKU)}`
+            ] = product;
+          }
+
+        }
+      );
+
+
+      const paths =
+        Object.keys(updates);
+
+
+      const chunkSize =
+        1000;
+
+
+      for (
+        let i = 0;
+        i < paths.length;
+        i += chunkSize
+      ) {
+
+        const chunk =
+          {};
+
+
+        paths
+          .slice(
+            i,
+            i + chunkSize
+          )
+          .forEach(
+            path => {
+
+              chunk[path] =
+                updates[path];
+            }
+          );
+
+
+        await update(
+          ref(db),
+          chunk
+        );
+      }
+
+
+      toast(
+        `Index created for ${rows.length} products.`,
+        "success"
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast(
+        error.message ||
+        "Unable to build Data Index.",
+        "error"
+      );
+    }
+  };
+
+
+/* =========================================================
+   ADMIN RENDER FUNCTIONS
+   ========================================================= */
+
+function renderStoreAdmin() {
+
+  const container =
+    $("adminStoresList");
+
+  if (!container) return;
+
+
+  container.innerHTML =
+    Object.entries(
+      stores || {}
+    )
+      .map(
+        ([id, store]) => `
+
+          <div class="admin-row">
+
+            <div>
+              <strong>
+                ${escapeHtml(store.code)}
+              </strong>
+
+              -
+              ${escapeHtml(store.name)}
+            </div>
+
+            <button
+              onclick="deleteStore('${safeJs(id)}')"
+              class="danger-btn"
+            >
+              Delete
+            </button>
+
+          </div>
+        `
+      )
+      .join("");
+}
+
+
+function renderEmployeeAdmin() {
+
+  const container =
+    $("adminEmployeesList");
+
+  if (!container) return;
+
+
+  container.innerHTML =
+    Object.entries(
+      employees || {}
+    )
+      .map(
+        ([id, employee]) => `
+
+          <div class="admin-row">
+
+            <div>
+
+              <strong>
+                ${escapeHtml(employee.employeeId)}
+              </strong>
+
+              -
+              ${escapeHtml(employee.employeeName)}
+
+              <small>
+                ${escapeHtml(employee.status)}
+              </small>
+
+            </div>
+
+            <button
+              onclick="deleteEmployee('${safeJs(id)}')"
+              class="danger-btn"
+            >
+              Delete
+            </button>
+
+          </div>
+        `
+      )
+      .join("");
+}
+
+
+function renderCategoryAdmin() {
+
+  const container =
+    $("adminCategoriesList");
+
+  if (!container) return;
+
+
+  container.innerHTML =
+    Object.entries(
+      categories || {}
+    )
+      .map(
+        ([id, category]) => `
+
+          <div class="admin-row">
+
+            <div>
+
+              <strong>
+                ${escapeHtml(category.name)}
+              </strong>
+
+              <span>
+                ${category.active ? "Active" : "Inactive"}
+              </span>
+
+            </div>
+
+            <div>
+
+              <button
+                onclick="renameAdminCategory(
+                  '${safeJs(id)}',
+                  '${safeJs(category.name)}'
+                )"
+              >
+                Rename
+              </button>
+
+              <button
+                onclick="deleteCategory('${safeJs(id)}')"
+                class="danger-btn"
+              >
+                Delete
+              </button>
+
+            </div>
+
+          </div>
+        `
+      )
+      .join("");
+}
+
+
+function renderStoreCategoryAdmin() {
+
+  const container =
+    $("adminStoreCategoriesList");
+
+  if (!container) return;
+
+
+  let html = "";
+
+
+  Object.entries(
+    stores || {}
+  ).forEach(
+    ([storeId, store]) => {
+
+      html += `
+
+        <div class="admin-store-category">
+
+          <h4>
+            ${escapeHtml(store.code)}
+            -
+            ${escapeHtml(store.name)}
+          </h4>
+      `;
+
+
+      Object.entries(
+        categories || {}
+      ).forEach(
+        ([categoryId, category]) => {
+
+          const checked =
+            storeCategories?.[
+              storeId
+            ]?.[
+              categoryId
+            ] === true;
+
+
+          html += `
+
+            <label class="checkbox-row">
+
+              <input
+                type="checkbox"
+                ${
+                  checked
+                    ? "checked"
+                    : ""
+                }
+
+                onchange="
+                  assignCategoryToStore(
+                    '${safeJs(store.code)}',
+                    '${safeJs(category.name)}',
+                    this.checked
+                  )
+                "
+              >
+
+              ${escapeHtml(category.name)}
+
+            </label>
+          `;
+        }
+      );
+
+
+      html += `
+        </div>
+      `;
+    }
+  );
+
+
+  container.innerHTML =
+    html;
+}
+
+
+function renderCycleAdmin() {
+
+  const container =
+    $("adminCyclesList");
+
+  if (!container) return;
+
+
+  container.innerHTML =
+    Object.entries(
+      categoryCycle || {}
+    )
+      .map(
+        ([id, cycle]) => `
+
+          <div class="admin-row">
+
+            <div>
+
+              <strong>
+                ${escapeHtml(cycle.category)}
+              </strong>
+
+              <span>
+                ${escapeHtml(cycle.start)}
+                →
+                ${escapeHtml(cycle.end)}
+              </span>
+
+            </div>
+
+            <button
+              class="danger-btn"
+              onclick="
+                deleteCategoryCycle(
+                  '${safeJs(id)}'
+                )
+              "
+            >
+              Delete
+            </button>
+
+          </div>
+        `
+      )
+      .join("");
+}
+
+
+function renderMinQtyAdmin() {
+
+  const select =
+    $("adminMinCategory");
+
+  if (!select) return;
+
+
+  select.innerHTML =
+    `<option value="">Select Category</option>`;
+
+
+  Object.values(
+    categories || {}
+  ).forEach(
+    category => {
+
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        category.name;
+
+      option.textContent =
+        category.name;
+
+      select.appendChild(
+        option
+      );
+    }
+  );
+}
+
+
+function renderDataMasterAdmin() {
+
+  const container =
+    $("adminDataMasterList");
+
+  if (!container) return;
+
+
+  container.innerHTML = `
+    <div class="admin-info">
+
+      Firebase Data Master is protected.
+
+      Store users cannot edit
+      Data Master records.
+
+      Use
+      <strong>
+        Build Barcode/SKU Index
+      </strong>
+      after importing or changing
+      the Data Master.
+
+    </div>
+  `;
+}
+
+
+function renderSettingsAdmin() {
+
+  const checkbox =
+    $("adminBarcodePasteAllowed");
+
+  if (checkbox) {
+    checkbox.checked =
+      pasteAllowed;
+  }
+}
+
+
+function refreshStoreLoginData() {
+
+  /*
+     Store data is realtime.
+     Nothing else is required here.
+  */
+}
+
+
+/* =========================================================
+   INITIALIZE
+   ========================================================= */
+
+window.addEventListener(
+  "load",
+  () => {
+
+    /*
+       Make sure the home page is visible
+       even if Firebase takes time to load.
+    */
+
+    window.showOnly(
+      "landingPage"
+    );
+
+  }
+);
