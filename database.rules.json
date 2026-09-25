@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "expiryMonitoring": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}

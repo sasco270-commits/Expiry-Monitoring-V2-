@@ -1,0 +1,13 @@
+{
+  "hosting": {
+    "site": "expiry-monitoring-v2",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "cleanUrls": true,
+    "trailingSlash": false
+  }
+}
