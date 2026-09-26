@@ -2,229 +2,447 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.5,user-scalable=yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SASCO Palm · Expiry Monitoring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
 <style>
-:root{--primary:#1a56db;--primary-dark:#1e40af;--primary-light:#dbeafe;--success:#059669;--warning:#d97706;--danger:#dc2626;--gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;--gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;--gray-600:#4b5563;--gray-700:#374151;--gray-800:#1f2937;--gray-900:#111827;--white:#fff;--shadow:0 4px 15px rgba(0,0,0,.08);--radius:12px}
-*{box-sizing:border-box;margin:0;padding:0}body{font-family:Inter,Arial,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}.page{display:none;min-height:100vh}#landingPage{display:block}header{height:64px;background:#fff;border-bottom:2px solid var(--primary);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.06)}.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px}.brand-icon{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#1a56db,#1e40af);color:#fff;display:grid;place-items:center}.brand span{color:var(--primary)}.wrap{max-width:1200px;margin:0 auto;padding:24px}.statusbar{background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:8px 12px;display:flex;gap:18px;align-items:center;font-size:12px;color:var(--gray-500);margin-bottom:18px}.dot{width:8px;height:8px;border-radius:50%;background:var(--success);display:inline-block}.card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px}.hero{max-width:760px;margin:70px auto;text-align:center}.hero h1{font-size:34px;margin-bottom:10px}.hero p{color:var(--gray-500);margin-bottom:28px}.module-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}.module{background:#fff;border:1px solid var(--gray-200);border-radius:16px;padding:24px;text-align:left;box-shadow:var(--shadow);transition:.2s}.module:hover{transform:translateY(-2px);border-color:var(--primary)}.module i{font-size:28px;color:var(--primary);margin-bottom:14px}.module h3{margin-bottom:6px}.module p{font-size:13px;color:var(--gray-500);margin-bottom:16px}.btn{border:0;border-radius:9px;padding:10px 16px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px}.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}.btn-success{background:var(--success);color:#fff}.btn-danger{background:var(--danger);color:#fff}.btn-light{background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200)}.btn:disabled{opacity:.55;cursor:not-allowed}.login-shell{max-width:620px;margin:55px auto}.title-row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:18px}.title-row h2{font-size:22px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:700;color:var(--gray-600)}.field input,.field select{width:100%;padding:11px 12px;border:1px solid var(--gray-300);border-radius:8px;outline:none;background:#fff}.field input:focus,.field select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}.verification{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:16px 0}.verify-box{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;padding:8px}.verify-box small{display:block;color:var(--gray-500);font-size:10px}.verify-box strong{display:block;font-size:12px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.error{display:none;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:12px 0;font-size:12px}.identity{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:14px}.top-actions{display:flex;gap:8px;flex-wrap:wrap}.expiry-head{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px}.info-box{background:#fff;border:1px solid var(--gray-200);border-radius:9px;padding:9px}.info-box small{display:block;color:var(--gray-500);font-size:10px}.info-box strong{font-size:13px}.scanbar{display:grid;grid-template-columns:1.1fr 1fr auto auto;gap:10px;align-items:end;margin-bottom:12px}.table-wrap{overflow:auto;border:1px solid var(--gray-200);border-radius:10px;background:#fff}.data-table{width:100%;border-collapse:collapse;min-width:950px}.data-table th{background:var(--gray-100);font-size:11px;text-align:left;padding:9px;border-bottom:1px solid var(--gray-200);position:sticky;top:0}.data-table td{padding:8px;border-bottom:1px solid var(--gray-200);font-size:11px}.data-table input{width:100%;padding:7px;border:1px solid var(--gray-300);border-radius:6px}.bottom-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}.status{font-size:12px;font-weight:800;padding:7px 10px;border-radius:8px;display:inline-block}.status.pending{background:#fff7ed;color:#9a3412}.status.submitted{background:#ecfdf5;color:#065f46}.saved{display:none;background:#eff6ff;border:1px solid #bfdbfe;padding:10px;border-radius:8px;margin:10px 0;font-size:12px}.admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}.admin-section{background:#fff;border:1px solid var(--gray-200);border-radius:12px;padding:16px;box-shadow:var(--shadow)}.admin-section h3{font-size:15px;margin-bottom:12px}.admin-list{max-height:260px;overflow:auto;margin-top:12px}.admin-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;padding:8px;border-bottom:1px solid var(--gray-200);font-size:11px;align-items:center}.admin-row span{color:var(--gray-600)}.admin-row button{border:0;background:#fee2e2;color:#991b1b;border-radius:6px;padding:5px 8px;font-size:10px}.footer{text-align:center;color:var(--gray-400);font-size:11px;padding:25px}.hide{display:none!important}@media(max-width:800px){.form-grid,.expiry-head,.verification,.scanbar{grid-template-columns:1fr}.verification{grid-template-columns:1fr 1fr}.wrap{padding:14px}.hero{margin:35px auto}.hero h1{font-size:27px}.admin-row{grid-template-columns:1fr}.title-row{align-items:flex-start;flex-direction:column}}
+:root{
+  --primary:#1a56db;--primary-dark:#1e40af;--primary-light:#dbeafe;
+  --success:#059669;--danger:#dc2626;--warning:#d97706;
+  --gray-50:#f9fafb;--gray-100:#f3f4f6;--gray-200:#e5e7eb;
+  --gray-300:#d1d5db;--gray-400:#9ca3af;--gray-500:#6b7280;
+  --gray-600:#4b5563;--gray-700:#374151;--gray-800:#1f2937;
+  --gray-900:#111827;--white:#fff;--shadow:0 5px 18px rgba(0,0,0,.08);
+  --radius:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,Arial,sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
+button,input,select{font:inherit}button{cursor:pointer}
+.hidden{display:none!important}
+.page{display:none;min-height:calc(100vh - 64px)}
+.page.active{display:block}
+header{height:64px;background:#fff;border-bottom:2px solid var(--primary);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px}
+.brand-icon{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,#1a56db,#1e40af);color:#fff;display:grid;place-items:center}
+.brand span{color:var(--primary)}
+.wrap{max-width:1250px;margin:auto;padding:24px}
+.statusbar{background:#fff;border:1px solid var(--gray-200);border-radius:10px;padding:9px 12px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--gray-500);margin-bottom:18px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--warning);display:inline-block;margin-right:5px}
+.dot.ok{background:var(--success)}
+.hero{max-width:780px;margin:65px auto 40px;text-align:center}
+.hero h1{font-size:35px;margin-bottom:10px}
+.hero p{color:var(--gray-500);margin-bottom:28px}
+.module-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:18px}
+.module,.card,.adminsec{background:#fff;border:1px solid var(--gray-200);border-radius:16px;box-shadow:var(--shadow)}
+.module{padding:25px}
+.module:hover{border-color:var(--primary)}
+.module i{font-size:28px;color:var(--primary);margin-bottom:14px}
+.module h3{margin-bottom:7px}
+.module p{font-size:13px;color:var(--gray-500);line-height:1.55;margin-bottom:18px}
+.card{padding:20px}
+.btn{border:0;border-radius:9px;padding:10px 15px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary-dark)}
+.btn-success{background:var(--success);color:#fff}.btn-danger{background:var(--danger);color:#fff}
+.btn-light,.ghost{background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.top-actions{display:flex;gap:8px;flex-wrap:wrap}
+.title-row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+.title-row h2{font-size:22px}
+.login-shell{max-width:650px;margin:55px auto}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.field{display:flex;flex-direction:column;gap:6px}.field.full{grid-column:1/-1}
+.field label{font-size:12px;font-weight:700;color:var(--gray-600)}
+.field input,.field select{width:100%;padding:11px 12px;border:1px solid var(--gray-300);border-radius:8px;outline:none;background:#fff}
+.field input:focus,.field select:focus{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+.verification{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:16px 0}
+.verify-box,.info-box{background:var(--gray-50);border:1px solid var(--gray-200);border-radius:9px;padding:9px}
+.verify-box small,.info-box small{display:block;color:var(--gray-500);font-size:10px}
+.verify-box strong,.info-box strong{display:block;font-size:12px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.error{background:#fee2e2;color:#991b1b;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:12px 0;font-size:12px}
+.identity{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;border-radius:8px;padding:9px 12px;font-size:12px;margin-bottom:14px}
+.expiry-head{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:12px}
+.scanbar{display:grid;grid-template-columns:1.1fr 1.4fr auto auto;gap:10px;align-items:end}
+.metrics{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.metric{padding:8px 11px;background:var(--gray-50);border:1px solid var(--gray-200);border-radius:8px;font-size:11px}
+.metric b{font-size:14px;margin-left:5px}
+.table-wrap{overflow:auto;border:1px solid var(--gray-200);border-radius:10px;background:#fff;margin-top:12px}
+.data-table{width:100%;border-collapse:collapse;min-width:1050px}
+.data-table th{background:var(--gray-100);font-size:10px;text-align:left;padding:9px;border-bottom:1px solid var(--gray-200);white-space:nowrap}
+.data-table td{padding:8px;border-bottom:1px solid var(--gray-200);font-size:11px}
+.data-table input{width:100%;padding:6px;border:1px solid var(--gray-300);border-radius:6px}
+.danger{background:#fee2e2;color:#991b1b;border:0;border-radius:6px;padding:5px 8px}
+.bottom-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+.badge{font-size:11px;font-weight:800;padding:7px 10px;border-radius:8px;background:#fff7ed;color:#9a3412}
+.badge.submitted{background:#ecfdf5;color:#065f46}
+.toast{position:fixed;right:18px;bottom:18px;z-index:1000;max-width:420px;padding:12px 15px;border-radius:10px;background:#111827;color:#fff;box-shadow:var(--shadow);font-size:12px}
+.toast.error{background:#991b1b}.toast.success{background:#065f46}
+.admin-nav{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.adminsec{display:none;padding:17px}.adminsec.active{display:block}
+.admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:15px}
+.list{max-height:330px;overflow:auto;margin-top:12px;border:1px solid var(--gray-200);border-radius:8px}
+.listrow{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px;border-bottom:1px solid var(--gray-200);font-size:11px}
+.listrow:last-child{border-bottom:0}.small{font-size:10px;color:var(--gray-500);margin-top:3px}
+.admin-status{font-size:12px;color:var(--gray-600);margin-top:10px}
+.footer{text-align:center;color:var(--gray-400);font-size:11px;padding:25px}
+@media(max-width:850px){
+  .form-grid,.expiry-head,.verification,.scanbar{grid-template-columns:1fr}
+  .verification{grid-template-columns:1fr 1fr}
+  .wrap{padding:14px}.hero{margin:35px auto}
+  .hero h1{font-size:28px}.title-row{align-items:flex-start;flex-direction:column}
+}
 </style>
 </head>
+
 <body>
 
 <header>
-  <div class="brand"><div class="brand-icon"><i class="fas fa-boxes-stacked"></i></div><span>SASCO PALM</span>&nbsp; Inventory System</div>
+  <div class="brand">
+    <div class="brand-icon"><i class="fas fa-boxes-stacked"></i></div>
+    <span>SASCO PALM</span>&nbsp; Inventory System
+  </div>
   <div class="top-actions">
-    <button class="btn btn-light" type="button" onclick="showOnly('landingPage')"><i class="fas fa-home"></i> Home</button>
+    <span id="statusText" style="font-size:11px;color:#6b7280">Connecting to Firebase...</span>
+    <button class="btn btn-light" type="button" onclick="goHome()"><i class="fas fa-home"></i> Home</button>
   </div>
 </header>
 
 <!-- HOME -->
-<section id="landingPage" class="page">
+<section id="homePage" class="page active">
   <div class="wrap">
-    <div class="statusbar"><span><span class="dot"></span> Firebase Connected</span><span>Expiry Monitoring V2</span><span>GitHub + Firebase</span></div>
+    <div class="statusbar">
+      <span><span id="statusDot" class="dot"></span> Firebase</span>
+      <span>Expiry Monitoring V2</span>
+      <span>GitHub + Firebase</span>
+    </div>
     <div class="hero">
       <h1>SASCO Palm Inventory Management</h1>
       <p>Choose a module to continue.</p>
     </div>
+
     <div class="module-grid">
       <div class="module">
         <i class="fas fa-calendar-check"></i>
         <h3>Weekly Expiry Monitoring</h3>
-        <p>Record expiring items by store, category, barcode and expiry date.</p>
-        <button class="btn btn-primary" type="button" onclick="openWeeklyExpiryMonitoring()"><i class="fas fa-arrow-right"></i> Open</button>
+        <p>Record expiring items by store, employee, category, barcode and expiry date.</p>
+        <button class="btn btn-primary" onclick="openWeeklyExpiryMonitoring()">
+          <i class="fas fa-arrow-right"></i> Open
+        </button>
       </div>
+
       <div class="module">
         <i class="fas fa-user-shield"></i>
         <h3>Admin Control Center</h3>
-        <p>Manage stores, employees, categories, assignments, cycles and Data Master.</p>
-        <button class="btn btn-light" type="button" onclick="showOnly('adminPage')"><i class="fas fa-lock"></i> Admin</button>
+        <p>Manage Firebase master data, stores, employees, categories, cycles and Data Master.</p>
+        <button class="btn btn-light" onclick="openAdminLogin()">
+          <i class="fas fa-lock"></i> Admin
+        </button>
       </div>
     </div>
+
     <div class="footer">SASCO Palm · Expiry Monitoring · Firebase</div>
   </div>
 </section>
 
 <!-- STORE LOGIN -->
-<section id="weeklyExpiryLoginPage" class="page">
+<section id="loginPage" class="page">
   <div class="wrap">
     <div class="login-shell card">
       <div class="title-row">
-        <div><h2><i class="fas fa-calendar-check" style="color:#1a56db"></i> Weekly Expiry Monitoring</h2><div style="font-size:12px;color:#6b7280">Store Access</div></div>
-        <button class="btn btn-light" type="button" onclick="expiryBackToHome()"><i class="fas fa-home"></i> Home</button>
+        <div>
+          <h2><i class="fas fa-calendar-check" style="color:#1a56db"></i> Weekly Expiry Monitoring</h2>
+          <div style="font-size:12px;color:#6b7280">Store Access</div>
+        </div>
+        <button class="btn btn-light" onclick="goHome()"><i class="fas fa-home"></i> Home</button>
       </div>
 
       <div class="form-grid">
         <div class="field">
           <label>Store Code</label>
-          <input id="expiryLoginStoreCode" type="text" inputmode="numeric" autocomplete="off" placeholder="Enter Store Code">
+          <input id="storeCode" type="text" inputmode="numeric" autocomplete="off" placeholder="Enter Store Code"
+                 onkeydown="if(event.key==='Enter') verifyStore()">
         </div>
         <div class="field" style="justify-content:end">
-          <button id="expiryVerifyStoreBtn" class="btn btn-primary" type="button" onclick="expiryVerifyStore()"><i class="fas fa-store"></i> Verify Store</button>
+          <button class="btn btn-primary" onclick="verifyStore()">
+            <i class="fas fa-store"></i> Verify Store
+          </button>
         </div>
       </div>
 
-      <div class="verification">
-        <div class="verify-box"><small>Store</small><strong id="verifiedStoreName">—</strong></div>
-        <div class="verify-box"><small>Store Code</small><strong id="verifiedStoreCode">—</strong></div>
-        <div class="verify-box"><small>Classification</small><strong id="verifiedStoreClass">—</strong></div>
-        <div class="verify-box"><small>Area Manager</small><strong id="verifiedAreaManager">—</strong></div>
-        <div class="verify-box"><small>Operation Manager</small><strong id="verifiedOperationManager">—</strong></div>
-      </div>
+      <div id="storeInfo" class="verification hidden"></div>
 
-      <div class="field" style="margin-bottom:12px">
+      <div id="loginError" class="error hidden"></div>
+
+      <div class="field" style="margin-top:14px">
         <label>Employee ID</label>
-        <input id="expiryLoginEmployeeId" type="text" autocomplete="off" placeholder="Enter Employee ID from EmpData">
+        <input id="employeeId" type="text" autocomplete="off" placeholder="Enter Employee ID from EmpData"
+               disabled onkeydown="if(event.key==='Enter') loginStore()">
       </div>
 
-      <div id="expiryLoginError" class="error"></div>
-
-      <button id="expiryLoginBtn" class="btn btn-primary" style="width:100%" type="button" onclick="expiryDoLogin()"><i class="fas fa-arrow-right-to-bracket"></i> Open Weekly Expiry Monitoring</button>
-      <button class="btn btn-light" style="width:100%;margin-top:8px" type="button" onclick="expiryBackToHome()"><i class="fas fa-arrow-left"></i> Back to Home</button>
+      <button class="btn btn-primary" style="width:100%;margin-top:14px" onclick="loginStore()">
+        <i class="fas fa-arrow-right-to-bracket"></i> Open Weekly Expiry Monitoring
+      </button>
+      <button class="btn btn-light" style="width:100%;margin-top:8px" onclick="goHome()">
+        <i class="fas fa-arrow-left"></i> Back to Home
+      </button>
     </div>
   </div>
 </section>
 
 <!-- WEEKLY EXPIRY -->
-<section id="weeklyExpiryPage" class="page">
+<section id="monitorPage" class="page">
   <div class="wrap">
     <div class="title-row">
-      <div><h2><i class="fas fa-calendar-check" style="color:#1a56db"></i> Weekly Expiry Monitoring</h2><div style="font-size:12px;color:#6b7280">Expiry Entry</div></div>
+      <div>
+        <h2><i class="fas fa-calendar-check" style="color:#1a56db"></i> Weekly Expiry Monitoring</h2>
+        <div id="identityText" style="font-size:12px;color:#6b7280">Verified session</div>
+      </div>
       <div class="top-actions">
-        <button class="btn btn-light" type="button" onclick="printReport()"><i class="fas fa-print"></i> Print</button>
-        <button class="btn btn-light" type="button" onclick="expiryLogoutAndHome()"><i class="fas fa-home"></i> Home</button>
+        <button class="btn btn-light" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+        <button class="btn btn-light" onclick="logoutStore()"><i class="fas fa-home"></i> Home</button>
       </div>
     </div>
-
-    <div id="expiryIdentityBadge" class="identity"><i class="fas fa-user-check"></i> Verified</div>
 
     <div class="expiry-head">
-      <div class="info-box"><small>Store Code</small><strong><input id="storeCodeInput" readonly style="border:0;background:transparent;width:100%;font-weight:700"></strong></div>
-      <div class="info-box"><small>Employee ID</small><strong><input id="empId" readonly style="border:0;background:transparent;width:100%;font-weight:700"></strong></div>
-      <div class="info-box"><small>Classification</small><strong id="classificationBox">—</strong></div>
-      <div class="info-box"><small>Minimum SKU</small><strong id="minQtyValue">0</strong></div>
-      <div class="info-box"><small>Submission</small><strong id="submissionStatus">NOT SUBMITTED</strong></div>
+      <div class="info-box"><small>Store Code</small><strong id="storeText">—</strong></div>
+      <div class="info-box"><small>Employee ID</small><strong id="employeeText">—</strong></div>
+      <div class="info-box"><small>Category</small><strong id="categoryText">—</strong></div>
+      <div class="info-box"><small>Minimum SKU</small><strong id="minimumText">0</strong></div>
+      <div class="info-box"><small>Submission</small><strong id="submissionBadge" class="badge">Not submitted</strong></div>
     </div>
 
-    <div class="card" style="padding:14px">
+    <div class="card">
       <div class="scanbar">
-        <div class="field"><label>Category</label><select id="categoryDropdown"><option value="">Select Category</option></select></div>
-        <div class="field"><label>Barcode / SKU</label><input id="barcodeInput" type="text" autocomplete="off" placeholder="Scan or enter barcode / SKU"></div>
-        <button id="saveBtn" class="btn btn-primary" type="button"><i class="fas fa-save"></i> Save</button>
-        <button id="weeklySubmitBtn" class="btn btn-success" type="button"><i class="fas fa-paper-plane"></i> Submit</button>
+        <div class="field">
+          <label>Category</label>
+          <select id="categorySelect" onchange="categoryChanged()">
+            <option value="">Select Category</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Barcode / SKU</label>
+          <input id="barcodeInput" type="text" autocomplete="off" placeholder="Scan or enter barcode / SKU">
+        </div>
+
+        <button class="btn btn-primary" onclick="lookupAndAdd()">
+          <i class="fas fa-barcode"></i> Add
+        </button>
+
+        <button id="submitButton" class="btn btn-success" onclick="submitFinal()">
+          <i class="fas fa-paper-plane"></i> Submit
+        </button>
       </div>
-      <div id="savedDraftCard" class="saved"></div>
+
+      <div class="metrics">
+        <div class="metric">Rows <b id="itemsMetric">0</b></div>
+        <div class="metric">Quantity <b id="qtyMetric">0</b></div>
+        <div class="metric">Total Cost <b id="costMetric">0.00</b></div>
+        <div class="metric">Unique SKU <b id="uniqueMetric">0</b></div>
+        <div class="metric">Required <b id="currentText">0</b></div>
+      </div>
+
+      <div id="savedDraftCard" class="hidden" style="background:#eff6ff;border:1px solid #bfdbfe;padding:10px;border-radius:8px;font-size:12px"></div>
+
       <div class="table-wrap">
-        <table id="dataTable" class="data-table">
-          <thead><tr><th>#</th><th>SKU</th><th>Barcode</th><th>Item Name</th><th>UOM</th><th>Qty</th><th>Expiry Date</th><th>Days Left</th><th>Action</th></tr></thead>
+        <table id="itemsTable" class="data-table">
+          <thead>
+            <tr>
+              <th>#</th><th>SKU</th><th>Barcode</th><th>UOM</th><th>Description</th>
+              <th>Cost</th><th>Supplier</th><th>Vendor Code</th><th>Category</th>
+              <th>Qty</th><th>Expiry Date</th><th>Days Left</th><th>Total</th><th>Action</th>
+            </tr>
+          </thead>
           <tbody></tbody>
         </table>
       </div>
+
       <div class="bottom-actions">
-        <span style="font-size:11px;color:#6b7280">Expiry date format: DD/MM/YYYY · Past dates up to 21 days are accepted.</span>
-        <span id="submissionStatusBadge" class="status pending">NOT SUBMITTED</span>
+        <span style="font-size:11px;color:#6b7280">
+          Expiry format: DD/MM/YYYY · Maximum 3 expiry dates for the same barcode.
+        </span>
+        <div class="top-actions">
+          <button class="btn btn-light" onclick="saveDraft()"><i class="fas fa-save"></i> Save Draft</button>
+          <button class="btn btn-light" onclick="clearRows()"><i class="fas fa-trash"></i> Clear</button>
+        </div>
       </div>
     </div>
   </div>
 </section>
-
-<!-- DAILY ENTRY PLACEHOLDER -->
-<section id="dailyEntryPage" class="page"><div class="wrap"><div class="card"><h2>Daily Entry</h2><p style="margin-top:10px;color:#6b7280">Daily Entry is not enabled in this Firebase version.</p><button class="btn btn-light" onclick="showOnly('landingPage')">Home</button></div></div></section>
-
-<!-- DASHBOARD PLACEHOLDER -->
-<section id="dashboardPage" class="page"><div class="wrap"><div class="card"><h2>Dashboard</h2><p style="margin-top:10px;color:#6b7280">Dashboard is managed from the Firebase Admin Control Center.</p><button class="btn btn-light" onclick="showOnly('landingPage')">Home</button></div></div></section>
 
 <!-- ADMIN -->
 <section id="adminPage" class="page">
   <div class="wrap">
     <div class="title-row">
-      <div><h2><i class="fas fa-user-shield" style="color:#1a56db"></i> Admin Control Center</h2><div style="font-size:12px;color:#6b7280">Firebase Master Data Management</div></div>
-      <div class="top-actions"><button class="btn btn-light" onclick="showOnly('landingPage')">Home</button><button class="btn btn-danger" onclick="adminLogout()">Logout</button></div>
+      <div>
+        <h2><i class="fas fa-user-shield" style="color:#1a56db"></i> Admin Control Center</h2>
+        <div style="font-size:12px;color:#6b7280">Firebase Master Data Management</div>
+      </div>
+      <button class="btn btn-light" onclick="goHome()"><i class="fas fa-home"></i> Home</button>
     </div>
 
-    <div class="card" style="margin-bottom:16px">
+    <div class="admin-nav">
+      <button class="btn btn-light" onclick="adminTab('data')">Data Master</button>
+      <button class="btn btn-light" onclick="adminTab('stores')">Stores</button>
+      <button class="btn btn-light" onclick="adminTab('employees')">Employees</button>
+      <button class="btn btn-light" onclick="adminTab('categories')">Categories</button>
+      <button class="btn btn-light" onclick="adminTab('assign')">Store Categories</button>
+      <button class="btn btn-light" onclick="adminTab('cycle')">Category Cycle</button>
+    </div>
+
+    <div id="admin-login-card" class="adminsec active">
+      <h3>Admin Authentication</h3>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:12px">
+        Click Admin from the Home page and authenticate with Firebase Email/Password.
+      </p>
+      <button class="btn btn-primary" onclick="openAdminLogin()">Admin Login</button>
+      <div id="adminStatus" class="admin-status"></div>
+    </div>
+
+    <div id="admin-data" class="adminsec">
+      <div class="admin-grid">
+        <div>
+          <h3>Data Master</h3>
+          <div class="field">
+            <label>Search SKU / Barcode / Description / Category</label>
+            <input id="adminSearch" oninput="renderDataList()" placeholder="Search...">
+          </div>
+          <div id="dataList" class="list"></div>
+        </div>
+
+        <div>
+          <h3>Edit / Add Item</h3>
+          <input id="editId" type="hidden">
+          <div class="form-grid">
+            <div class="field"><label>SKU</label><input id="fSku"></div>
+            <div class="field"><label>Barcode</label><input id="fBarcode"></div>
+            <div class="field"><label>UOM</label><input id="fUom" value="PCS"></div>
+            <div class="field"><label>Cost</label><input id="fCost" type="number" step="0.01"></div>
+            <div class="field"><label>Category</label><input id="fCategory"></div>
+            <div class="field"><label>Vendor Code</label><input id="fVendor"></div>
+            <div class="field full"><label>Description</label><input id="fDesc"></div>
+            <div class="field"><label>Supplier</label><input id="fSupplier"></div>
+            <div class="field"><label>Returnable</label><select id="fReturnable"><option>No</option><option>Yes</option></select></div>
+          </div>
+          <div class="top-actions" style="margin-top:12px">
+            <button class="btn btn-primary" onclick="saveProduct()">Save Item</button>
+            <button class="btn btn-light" onclick="clearProductForm()">Clear</button>
+            <button class="btn btn-light" onclick="rebuildLookup()">Rebuild Lookup</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-stores" class="adminsec">
+      <div class="admin-grid">
+        <div>
+          <h3>Store Master</h3>
+          <div class="form-grid">
+            <div class="field"><label>Store Code</label><input id="sCode"></div>
+            <div class="field"><label>Store Name</label><input id="sName"></div>
+            <div class="field"><label>Classification</label><input id="sClass" value="C"></div>
+            <div class="field"><label>Area Manager</label><input id="sAM"></div>
+            <div class="field"><label>Operation Manager</label><input id="sOM"></div>
+            <div class="field"><label>Region</label><input id="sRegion"></div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:12px" onclick="saveStore()">Save Store</button>
+        </div>
+        <div>
+          <h3>Stores</h3>
+          <div id="storesList" class="list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="admin-employees" class="adminsec">
+      <h3>Employee Master</h3>
+      <p style="font-size:12px;color:#6b7280;margin-bottom:12px">
+        Employees are read from Firebase <b>EmpData</b>. Existing records can be used directly for Store Login.
+      </p>
       <div class="form-grid">
-        <div class="field"><label>Admin Email</label><input id="adminEmail" type="email" value="sasco270@gmail.com"></div>
-        <div class="field"><label>Password</label><input id="adminPassword" type="password" placeholder="Firebase Auth password"></div>
+        <div class="field"><label>Employee ID</label><input id="eId"></div>
+        <div class="field"><label>Employee Name</label><input id="eName"></div>
+        <div class="field"><label>Store Code</label><input id="eStore"></div>
+        <div class="field"><label>Status</label><input id="eStatus" value="Active"></div>
+        <div class="field"><label>Designation</label><input id="eDesignation"></div>
       </div>
-      <button class="btn btn-primary" style="margin-top:12px" onclick="adminLogin()"><i class="fas fa-right-to-bracket"></i> Admin Login</button>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="saveEmployee()">Save Employee</button>
+      <div id="employeesList" class="list"></div>
     </div>
 
-    <div class="admin-grid">
-      <div class="admin-section">
-        <h3>Stores</h3>
-        <div class="form-grid">
-          <div class="field"><label>Store Code</label><input id="adminStoreCode"></div>
-          <div class="field"><label>Store Name</label><input id="adminStoreName"></div>
-          <div class="field"><label>Classification</label><input id="adminStoreClassification"></div>
-          <div class="field"><label>Area Manager</label><input id="adminStoreAreaManager"></div>
-          <div class="field"><label>Operation Manager</label><input id="adminStoreOperationManager"></div>
-          <div class="field"><label>Region</label><input id="adminStoreRegion"></div>
-          <div class="field"><label>Location</label><input id="adminStoreLocation"></div>
-          <div class="field"><label>Store Type</label><input id="adminStoreType"></div>
-          <div class="field"><label>Email</label><input id="adminStoreEmail"></div>
-        </div>
-        <button class="btn btn-primary" style="margin-top:12px" onclick="adminSaveStore()">Save Store</button>
-        <div id="adminStoresList" class="admin-list"></div>
+    <div id="admin-categories" class="adminsec">
+      <h3>Categories</h3>
+      <div class="form-grid">
+        <div class="field"><label>New Category</label><input id="newCategory"></div>
       </div>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="addCategory()">Add Category</button>
+      <div id="categoriesList" class="list"></div>
+    </div>
 
-      <div class="admin-section">
-        <h3>Categories</h3>
-        <div class="field"><label>Category Name</label><input id="adminCategoryName"></div>
-        <button class="btn btn-primary" style="margin-top:12px" onclick="adminSaveCategory()">Add Category</button>
-        <div id="adminCategoriesList" class="admin-list"></div>
+    <div id="admin-assign" class="adminsec">
+      <h3>Store Category Assignment</h3>
+      <div class="form-grid">
+        <div class="field"><label>Store Code</label><input id="assignStore"></div>
+        <div class="field"><label>Category</label><input id="assignCategory"></div>
       </div>
+      <button class="btn btn-success" style="margin-top:12px" onclick="assignCategory()">Assign Category</button>
+      <div id="assignList" class="list"></div>
+    </div>
 
-      <div class="admin-section">
-        <h3>Employees</h3>
-        <p style="font-size:12px;color:#6b7280">Employees are read from Firebase <b>EmpData</b>. Use your existing EmpData master for login.</p>
-        <div id="adminEmployeesList" class="admin-list"></div>
+    <div id="admin-cycle" class="adminsec">
+      <h3>Category Cycle</h3>
+      <div class="form-grid">
+        <div class="field"><label>Cycle ID</label><input id="cycleId" placeholder="cycle_001"></div>
+        <div class="field"><label>Category</label><input id="cycleCategory"></div>
+        <div class="field"><label>Start</label><input id="cycleStart" type="date"></div>
+        <div class="field"><label>End</label><input id="cycleEnd" type="date"></div>
       </div>
-
-      <div class="admin-section">
-        <h3>Store Category Assignment</h3>
-        <div class="field"><label>Store Code</label><input id="assignStoreCode"></div>
-        <div class="field" style="margin-top:8px"><label>Category</label><input id="assignCategory"></div>
-        <div class="top-actions" style="margin-top:10px"><button class="btn btn-success" onclick="adminAssignCategory(document.getElementById('assignStoreCode').value,document.getElementById('assignCategory').value,true)">Assign</button><button class="btn btn-danger" onclick="adminAssignCategory(document.getElementById('assignStoreCode').value,document.getElementById('assignCategory').value,false)">Remove</button></div>
-      </div>
-
-      <div class="admin-section">
-        <h3>Category Cycle</h3>
-        <div class="form-grid">
-          <div class="field"><label>Cycle ID</label><input id="adminCycleId" placeholder="cycle_001"></div>
-          <div class="field"><label>Category</label><input id="adminCycleCategory"></div>
-          <div class="field"><label>Start</label><input id="adminCycleStart" type="date"></div>
-          <div class="field"><label>End</label><input id="adminCycleEnd" type="date"></div>
-        </div>
-        <button class="btn btn-primary" style="margin-top:12px" onclick="adminSaveCategoryCycle()">Save Cycle</button>
-      </div>
-
-      <div class="admin-section">
-        <h3>Minimum Quantity</h3>
-        <div class="form-grid">
-          <div class="field"><label>Category</label><input id="adminMinQtyCategory"></div>
-          <div class="field"><label>Classification</label><input id="adminMinQtyClass" placeholder="B / C / A / D"></div>
-          <div class="field"><label>Minimum SKU</label><input id="adminMinQtyValue" type="number" min="0"></div>
-        </div>
-        <button class="btn btn-primary" style="margin-top:12px" onclick="adminSaveMinQty()">Save Minimum</button>
-      </div>
-
-      <div class="admin-section">
-        <h3>Data Master</h3>
-        <p style="font-size:12px;color:#6b7280">Build the Firebase barcode/SKU lookup index from the existing Data master.</p>
-        <button class="btn btn-primary" style="margin-top:10px" onclick="buildDataLookupIndex()"><i class="fas fa-database"></i> Build Barcode/SKU Index</button>
-        <button class="btn btn-light" style="margin-top:10px" onclick="exportFirebaseData()"><i class="fas fa-download"></i> Backup Firebase JSON</button>
-      </div>
-
-      <div class="admin-section">
-        <h3>Barcode Setting</h3>
-        <p style="font-size:12px;color:#6b7280">Control whether barcode paste is allowed.</p>
-        <div class="top-actions" style="margin-top:10px"><button class="btn btn-success" onclick="adminSetBarcodePaste(true)">Enable</button><button class="btn btn-danger" onclick="adminSetBarcodePaste(false)">Disable</button></div>
-      </div>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="saveCycle()">Save Cycle</button>
+      <div id="cycleList" class="list"></div>
     </div>
   </div>
 </section>
+
+<div id="toast" class="toast hidden"></div>
+
+<script>
+/*
+  Compatibility helpers for the Firebase app.js.
+  These functions intentionally match the IDs used by app.js.
+*/
+window.showOnly = function(id){
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  const el = document.getElementById(id);
+  if(el) el.classList.add("active");
+};
+
+window.goHome = function(){
+  showOnly("homePage");
+};
+
+window.openWeeklyExpiryMonitoring = function(){
+  showOnly("loginPage");
+  const code = document.getElementById("storeCode");
+  if(code){ code.focus(); code.select(); }
+};
+
+window.adminTab = window.adminTab || function(tab){
+  document.querySelectorAll(".adminsec").forEach(x => x.classList.remove("active"));
+  const el = document.getElementById("admin-" + tab);
+  if(el) el.classList.add("active");
+};
+
+window.toast = window.toast || function(message,type="info"){
+  const el=document.getElementById("toast");
+  if(!el)return;
+  el.textContent=message;
+  el.className="toast "+(type==="error"?"error":type==="success"?"success":"");
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer=setTimeout(()=>el.className="toast hidden",4500);
+};
+</script>
 
 <script type="module" src="./app.js"></script>
 </body>
